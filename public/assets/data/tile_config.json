@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "tileSize": 32,
+  "sheets": {
+    "terrain": "tiles_terrain",
+    "grass": "tiles_grass",
+    "stone": "tiles_stone",
+    "wall": "tiles_wall"
+  },
+  "tiles": {
+    "0": { "name": "EMPTY", "sheet": "terrain", "frame": "tiles_terrain_0", "walkable": false, "variants": 1 },
+    "1": { "name": "SAND", "sheet": "terrain", "frame": "tiles_terrain_10", "walkable": true, "variants": 4, "transition": "sand_to_*" },
+    "2": { "name": "GRASS", "sheet": "terrain", "frame": "tiles_terrain_50", "walkable": true, "variants": 4, "transition": "grass_to_*" },
+    "3": { "name": "FOREST", "sheet": "terrain", "frame": "tiles_terrain_90", "walkable": true, "variants": 3, "transition": "forest_to_*" },
+    "4": { "name": "ROCK", "sheet": "terrain", "frame": "tiles_terrain_130", "walkable": true, "variants": 3, "transition": "rock_to_*" },
+    "5": { "name": "WATER", "sheet": "terrain", "frame": "tiles_terrain_300", "walkable": false, "variants": 4, "animated": true, "transition": "water_to_*" },
+    "6": { "name": "CAVE", "sheet": "terrain", "frame": "tiles_terrain_170", "walkable": true, "variants": 2, "transition": "cave_to_*" },
+    "7": { "name": "RUINS", "sheet": "terrain", "frame": "tiles_terrain_210", "walkable": true, "variants": 3, "transition": "ruins_to_*" },
+    "8": { "name": "BEACH", "sheet": "terrain", "frame": "tiles_terrain_30", "walkable": true, "variants": 2, "transition": "beach_to_*" },
+    "9": { "name": "JUNGLE", "sheet": "terrain", "frame": "tiles_terrain_95", "walkable": true, "variants": 3, "transition": "jungle_to_*" },
+    "10": { "name": "MOUNTAIN", "sheet": "terrain", "frame": "tiles_terrain_250", "walkable": true, "variants": 2, "transition": "mountain_to_*" },
+    "99": { "name": "BASE", "sheet": "terrain", "frame": "tiles_terrain_200", "walkable": true, "variants": 1 }
+  },
+  "transitions": {
+    "priority": ["WATER", "MOUNTAIN", "ROCK", "CAVE", "RUINS", "JUNGLE", "FOREST", "GRASS", "SAND", "BEACH"],
+    "blendMode": "overlay"
+  },
+  "objects": {
+    "trees": {
+      "palm": { "sheet": "objects_trees", "frames": ["trees_0", "trees_1", "trees_2"], "size": [32, 48], "offset": [0, -16] },
+      "pine": { "sheet": "objects_trees", "frames": ["trees_10", "trees_11"], "size": [32, 48], "offset": [0, -16] },
+      "oak": { "sheet": "objects_trees", "frames": ["trees_20", "trees_21"], "size": [32, 48], "offset": [0, -16] },
+      "jungle": { "sheet": "objects_trees", "frames": ["trees_30", "trees_31", "trees_32"], "size": [48, 64], "offset": [-8, -32] },
+      "dead": { "sheet": "objects_trees", "frames": ["trees_40"], "size": [32, 48], "offset": [0, -16] }
+    },
+    "rocks": {
+      "small": { "sheet": "objects_props", "frames": ["props_0", "props_1"], "size": [16, 16], "offset": [0, 0] },
+      "medium": { "sheet": "objects_props", "frames": ["props_10", "props_11"], "size": [32, 24], "offset": [0, -8] },
+      "large": { "sheet": "objects_props", "frames": ["props_20"], "size": [48, 32], "offset": [-8, -16] },
+      "cliff": { "sheet": "objects_props", "frames": ["props_30", "props_31", "props_32", "props_33"], "size": [32, 32], "offset": [0, 0] }
+    },
+    "resources": {
+      "wood_log": { "sheet": "objects_props", "frame": "props_50", "size": [16, 16] },
+      "stone": { "sheet": "objects_props", "frame": "props_51", "size": [16, 16] },
+      "fiber_plant": { "sheet": "objects_props", "frame": "props_52", "size": [16, 16] },
+      "bush_berries": { "sheet": "objects_props", "frame": "props_53", "size": [16, 16] },
+      "mushroom": { "sheet": "objects_props", "frame": "props_54", "size": [16, 16] },
+      "crystal": { "sheet": "objects_props", "frame": "props_55", "size": [16, 16] },
+      "metal_scrap": { "sheet": "objects_props", "frame": "props_56", "size": [16, 16] },
+      "shell": { "sheet": "objects_props", "frame": "props_57", "size": [16, 16] },
+      "herbs": { "sheet": "objects_props", "frame": "props_58", "size": [16, 16] },
+      "bone": { "sheet": "objects_props", "frame": "props_59", "size": [16, 16] },
+      "hide": { "sheet": "objects_props", "frame": "props_60", "size": [16, 16] }
+    },
+    "crafting": {
+      "workbench": { "sheet": "objects_structures", "frame": "structures_0", "size": [48, 32], "offset": [-8, -16] },
+      "campfire": { "sheet": "objects_structures", "frame": "structures_10", "size": [32, 32], "offset": [0, 0], "animated": true },
+      "furnace": { "sheet": "objects_structures", "frame": "structures_20", "size": [32, 48], "offset": [0, -16], "animated": true },
+      "loom": { "sheet": "objects_structures", "frame": "structures_30", "size": [48, 48], "offset": [-8, -16] },
+      "anvil": { "sheet": "objects_structures", "frame": "structures_40", "size": [32, 24], "offset": [0, -8] },
+      "drying_rack": { "sheet": "objects_structures", "frame": "structures_50", "size": [48, 32], "offset": [-8, -16] },
+      "water_still": { "sheet": "objects_structures", "frame": "structures_60", "size": [32, 32], "offset": [0, 0] },
+      "signal_fire": { "sheet": "objects_structures", "frame": "structures_70", "size": [32, 48], "offset": [0, -16], "animated": true }
+    },
+    "ruins": {
+      "pillar": { "sheet": "objects_structures", "frames": ["structures_80", "structures_81", "structures_82"], "size": [32, 48], "offset": [0, -16] },
+      "wall": { "sheet": "objects_structures", "frames": ["structures_90", "structures_91", "structures_92", "structures_93"], "size": [32, 32], "offset": [0, 0] },
+      "statue": { "sheet": "objects_structures", "frame": "structures_100", "size": [32, 48], "offset": [0, -16] },
+      "rubble": { "sheet": "objects_props", "frames": ["props_70", "props_71"], "size": [32, 16], "offset": [0, 0] }
+    }
+  }
+}

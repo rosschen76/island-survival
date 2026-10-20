@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "character": {
+    "survivor": {
+      "sheet": "character_survivor",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "animations": {
+        "idle_down": { "frames": ["survivor_0", "survivor_1"], "duration": 500, "loop": true },
+        "idle_left": { "frames": ["survivor_4", "survivor_5"], "duration": 500, "loop": true },
+        "idle_right": { "frames": ["survivor_8", "survivor_9"], "duration": 500, "loop": true },
+        "idle_up": { "frames": ["survivor_12", "survivor_13"], "duration": 500, "loop": true },
+        "walk_down": { "frames": ["survivor_0", "survivor_1", "survivor_2", "survivor_3"], "duration": 120, "loop": true },
+        "walk_left": { "frames": ["survivor_4", "survivor_5", "survivor_6", "survivor_7"], "duration": 120, "loop": true },
+        "walk_right": { "frames": ["survivor_8", "survivor_9", "survivor_10", "survivor_11"], "duration": 120, "loop": true },
+        "walk_up": { "frames": ["survivor_12", "survivor_13", "survivor_14", "survivor_15"], "duration": 120, "loop": true },
+        "gather_down": { "frames": ["survivor_0", "survivor_1", "survivor_2"], "duration": 150, "loop": false },
+        "gather_left": { "frames": ["survivor_4", "survivor_5", "survivor_6"], "duration": 150, "loop": false },
+        "gather_right": { "frames": ["survivor_8", "survivor_9", "survivor_10"], "duration": 150, "loop": false },
+        "gather_up": { "frames": ["survivor_12", "survivor_13", "survivor_14"], "duration": 150, "loop": false },
+        "craft_down": { "frames": ["survivor_0", "survivor_1", "survivor_2", "survivor_3"], "duration": 200, "loop": false },
+        "craft_left": { "frames": ["survivor_4", "survivor_5", "survivor_6", "survivor_7"], "duration": 200, "loop": false },
+        "craft_right": { "frames": ["survivor_8", "survivor_9", "survivor_10", "survivor_11"], "duration": 200, "loop": false },
+        "craft_up": { "frames": ["survivor_12", "survivor_13", "survivor_14", "survivor_15"], "duration": 200, "loop": false },
+        "hurt": { "frames": ["survivor_0", "survivor_1"], "duration": 100, "loop": false },
+        "death": { "frames": ["survivor_0", "survivor_1", "survivor_2", "survivor_3"], "duration": 200, "loop": false },
+        "victory": { "frames": ["survivor_0", "survivor_1", "survivor_2"], "duration": 300, "loop": true }
+      }
+    }
+  },
+  "tiles": {
+    "water": { "frames": ["tiles_terrain_300", "tiles_terrain_301", "tiles_terrain_302", "tiles_terrain_303"], "duration": 300, "loop": true },
+    "campfire": { "frames": ["tiles_terrain_350", "tiles_terrain_351", "tiles_terrain_352", "tiles_terrain_353", "tiles_terrain_354", "tiles_terrain_355"], "duration": 100, "loop": true },
+    "furnace": { "frames": ["tiles_terrain_360", "tiles_terrain_361"], "duration": 500, "loop": true },
+    "furnace_active": { "frames": ["tiles_terrain_362", "tiles_terrain_363", "tiles_terrain_364", "tiles_terrain_365"], "duration": 150, "loop": true },
+    "signal_fire": { "frames": ["tiles_terrain_370", "tiles_terrain_371", "tiles_terrain_372", "tiles_terrain_373"], "duration": 150, "loop": true }
+  },
+  "particles": {
+    "dust": { "frames": ["particles_explosion1"], "duration": 50, "loop": false },
+    "sparkle": { "frames": ["particles_explosion2"], "duration": 80, "loop": false },
+    "smoke": { "frames": ["particles_explosion3"], "duration": 100, "loop": false },
+    "fire": { "frames": ["particles_fire1", "particles_fire2"], "duration": 60, "loop": true },
+    "blood": { "frames": ["particles_explosion1"], "duration": 50, "loop": false },
+    "levelup": { "frames": ["particles_explosion2"], "duration": 100, "loop": false },
+    "heal": { "frames": ["particles_fire1"], "duration": 100, "loop": false },
+    "pickup": { "frames": ["particles_explosion2"], "duration": 80, "loop": false },
+    "craft": { "frames": ["particles_fire1"], "duration": 80, "loop": false },
+    "explore": { "frames": ["particles_explosion1"], "duration": 100, "loop": false }
+  },
+  "ui": {
+    "button_hover": { "frames": ["sfx_click_a"], "duration": 200, "loop": true },
+    "button_press": { "frames": ["sfx_click_b"], "duration": 50, "loop": false },
+    "panel_open": { "frames": ["sfx_switch_a"], "duration": 50, "loop": false },
+    "panel_close": { "frames": ["sfx_switch_b"], "duration": 50, "loop": false },
+    "notification": { "frames": ["sfx_tap_a"], "duration": 300, "loop": true }
+  },
+  "combat": {
+    "slash": { "frames": ["particles_explosion1"], "duration": 50, "loop": false },
+    "hit": { "frames": ["particles_explosion2"], "duration": 50, "loop": false },
+    "miss": { "frames": ["particles_explosion3"], "duration": 80, "loop": false },
+    "critical": { "frames": ["particles_fire1", "particles_fire2", "particles_explosion1", "particles_explosion2"], "duration": 60, "loop": false },
+    "block": { "frames": ["particles_explosion1"], "duration": 80, "loop": false },
+    "arrow": { "frames": ["particles_fire1"], "duration": 100, "loop": true }
+  }
+}

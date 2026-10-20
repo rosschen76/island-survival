@@ -1,0 +1,33 @@
+{
+  "name": "island-survival",
+  "version": "1.0.0",
+  "description": "無人島生存小遊戲 - 格子地圖探索 + 事件驅動劇情 (純網頁版)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "assets:list": "node scripts/download-assets.cjs --list",
+    "assets:dirs": "node scripts/download-assets.cjs --dirs --placeholders",
+    "assets:open": "node scripts/download-assets.cjs --open",
+    "assets:steps": "node scripts/download-assets.cjs --steps",
+    "assets:auto": "node scripts/download-assets-auto.cjs",
+    "assets:auto-all": "node scripts/download-assets-auto.cjs --all"
+  },
+  "keywords": [
+    "game",
+    "survival",
+    "roguelike",
+    "web",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "adm-zip": "^0.6.1",
+    "playwright": "^1.64.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10"
+  }
+}

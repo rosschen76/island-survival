@@ -1,0 +1,8 @@
+{
+  "model": "Furen-max",
+  "provider": {
+    "options": {
+      "max_tokens": 8192
+    }
+  }
+}

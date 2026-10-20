@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "basePath": "assets/",
+  "images": [
+    { "id": "tiles_terrain", "src": "tiles/terrain.png", "type": "spritesheet", "frameWidth": 32, "frameHeight": 32 },
+    { "id": "tiles_grass", "src": "tiles/grass.png", "type": "spritesheet", "frameWidth": 32, "frameHeight": 32 },
+    { "id": "tiles_stone", "src": "tiles/stone.png", "type": "spritesheet", "frameWidth": 32, "frameHeight": 32 },
+    { "id": "tiles_wall", "src": "tiles/wall.png", "type": "spritesheet", "frameWidth": 32, "frameHeight": 32 },
+    { "id": "character_survivor", "src": "characters/survivor.png", "type": "spritesheet", "frameWidth": 32, "frameHeight": 32 },
+    { "id": "objects_trees", "src": "objects/trees.png", "type": "spritesheet", "frameWidth": 32, "frameHeight": 32 },
+    { "id": "objects_props", "src": "objects/props.png", "type": "spritesheet", "frameWidth": 32, "frameHeight": 32 },
+    { "id": "objects_structures", "src": "objects/structures.png", "type": "spritesheet", "frameWidth": 32, "frameHeight": 32 },
+    { "id": "objects_ship_parts", "src": "objects/ship-parts/hullSmall (1).png", "type": "image" },
+    { "id": "particles_explosion1", "src": "particles/explosion1.png", "type": "image" },
+    { "id": "particles_explosion2", "src": "particles/explosion2.png", "type": "image" },
+    { "id": "particles_explosion3", "src": "particles/explosion3.png", "type": "image" },
+    { "id": "particles_fire1", "src": "particles/fire1.png", "type": "image" },
+    { "id": "particles_fire2", "src": "particles/fire2.png", "type": "image" }
+  ],
+  "audio": [
+    { "id": "sfx_click_a", "src": "audio/click-a.ogg", "type": "audio" },
+    { "id": "sfx_click_b", "src": "audio/click-b.ogg", "type": "audio" },
+    { "id": "sfx_switch_a", "src": "audio/switch-a.ogg", "type": "audio" },
+    { "id": "sfx_switch_b", "src": "audio/switch-b.ogg", "type": "audio" },
+    { "id": "sfx_tap_a", "src": "audio/tap-a.ogg", "type": "audio" },
+    { "id": "sfx_tap_b", "src": "audio/tap-b.ogg", "type": "audio" }
+  ],
+  "data": [
+    { "id": "tile_config", "src": "data/tile_config.json", "type": "json" },
+    { "id": "item_icons_map", "src": "data/item_icons_map.json", "type": "json" },
+    { "id": "animation_defs", "src": "data/animations.json", "type": "json" }
+  ]
+}

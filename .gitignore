@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Production build
+dist/
+dist-electron/
+dist-release/
+
+# Temporary / Scratch
+downloads/
+*.log
+.DS_Store
+Thumbs.db
+
+# Raw asset pack folders in public/assets (game uses tiles/, characters/, objects/, ui/, data/, audio/, particles/)
+public/assets/kenney_*
+public/assets/Pixel Art Top Down - Basic*
+public/assets/Super Pixel Effects*
+
+# Unrelated documents
+generate_word.py
+小機房管理規定*
+*.docx
