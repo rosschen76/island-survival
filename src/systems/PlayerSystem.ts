@@ -38,7 +38,13 @@ export class PlayerSystem {
       eventsCompleted: 0,
       combatsWon: 0,
       itemsCrafted: 0,
-      endingsUnlocked: []
+      woodCollected: 0,
+      stoneCollected: 0,
+      fiberCollected: 0,
+      foodEaten: 0,
+      waterDrank: 0,
+      endingsUnlocked: [],
+      achievementsUnlocked: []
     }
   }
 
@@ -61,6 +67,7 @@ export class PlayerSystem {
 
   /** 增加物品到背包 */
   addItem(itemId: string, quantity: number = 1): boolean {
+    const initialQty = quantity
     const def = ITEM_DEFS[itemId]
     if (!def) {
       console.warn(`未知物品: ${itemId}`)
@@ -92,6 +99,11 @@ export class PlayerSystem {
       quantity -= stackSize
     }
 
+    const collectedQty = initialQty || quantity
+    if (itemId === 'wood') this.player.stats.woodCollected = (this.player.stats.woodCollected || 0) + collectedQty
+    if (itemId === 'stone') this.player.stats.stoneCollected = (this.player.stats.stoneCollected || 0) + collectedQty
+    if (itemId === 'fiber') this.player.stats.fiberCollected = (this.player.stats.fiberCollected || 0) + collectedQty
+    this.game.achievementSystem?.checkAchievements()
     this.game['audioSystem'].playSFX('pickup')
     return true
   }
@@ -164,6 +176,9 @@ export class PlayerSystem {
       this.player.inventory.splice(index, 1)
     }
 
+    if (def.type === ItemType.FOOD) this.player.stats.foodEaten = (this.player.stats.foodEaten || 0) + 1
+    if (def.type === ItemType.WATER) this.player.stats.waterDrank = (this.player.stats.waterDrank || 0) + 1
+    this.game.achievementSystem?.checkAchievements()
     this.game['audioSystem'].playSFX(def.type === ItemType.FOOD || def.type === ItemType.WATER ? 'eat' : 'drink')
     return true
   }
@@ -229,6 +244,7 @@ export class PlayerSystem {
       this.player.stats.endingsUnlocked.push(endingType as EndingType)
       // 存檔成就
       this.saveEndingProgress()
+      this.game.achievementSystem?.checkAchievements()
     }
   }
 
@@ -287,7 +303,13 @@ export class PlayerSystem {
         daysSurvived: state.stats.daysSurvived || 1,
         currentHour: state.stats.currentHour ?? 8,
         currentMinute: state.stats.currentMinute ?? 0,
-        endingsUnlocked: [...(state.stats.endingsUnlocked || [])]
+        woodCollected: state.stats.woodCollected ?? 0,
+        stoneCollected: state.stats.stoneCollected ?? 0,
+        fiberCollected: state.stats.fiberCollected ?? 0,
+        foodEaten: state.stats.foodEaten ?? 0,
+        waterDrank: state.stats.waterDrank ?? 0,
+        endingsUnlocked: [...(state.stats.endingsUnlocked || [])],
+        achievementsUnlocked: [...(state.stats.achievementsUnlocked || [])]
       },
       inventory: state.inventory.map(item => ({ ...item }))
     }

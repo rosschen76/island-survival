@@ -10,6 +10,8 @@ export enum GameState {
   CRAFTING = 'CRAFTING',
   INVENTORY = 'INVENTORY',
   SAVE_LOAD = 'SAVE_LOAD',
+  ACHIEVEMENTS = 'ACHIEVEMENTS',
+  TARGET_SELECT = 'TARGET_SELECT',
   GAME_OVER = 'GAME_OVER',
   VICTORY = 'VICTORY'
 }
@@ -121,7 +123,13 @@ export interface PlayerStats {
   eventsCompleted: number
   combatsWon: number
   itemsCrafted: number
+  woodCollected: number
+  stoneCollected: number
+  fiberCollected: number
+  foodEaten: number
+  waterDrank: number
   endingsUnlocked: EndingType[]
+  achievementsUnlocked: string[]
 }
 
 /** 背包物品 */
@@ -246,4 +254,25 @@ export interface SeedData {
   map: number[][]
   events: Record<string, boolean>
   resources: Record<string, number>
+}
+
+/** 成就定義 */
+export interface AchievementDef {
+  id: string
+  title: string
+  description: string
+  icon: string
+  category: 'exploration' | 'gathering' | 'survival' | 'craft_combat' | 'endings'
+  maxProgress: number
+}
+
+/** 目標模式目標定義 */
+export interface TargetGoalDef {
+  id: string
+  title: string
+  description: string
+  icon: string
+  type: 'gather' | 'craft' | 'explore'
+  targetItem?: string
+  targetQuantity?: number
 }

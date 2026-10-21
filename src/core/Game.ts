@@ -12,6 +12,8 @@ import { InputManager } from './InputManager.js'
 import { Renderer } from './Renderer.js'
 import { AssetManager, assetManager } from './AssetManager.js'
 import { DEFAULT_CONFIG, GAME_VERSION } from '../data/Constants.js'
+import { AchievementSystem } from '../systems/AchievementSystem.js'
+import { TargetSystem } from '../systems/TargetSystem.js'
 
 export class Game {
   private canvas: HTMLCanvasElement
@@ -36,6 +38,8 @@ export class Game {
   public readonly input: InputManager
   public readonly renderer: Renderer
   public readonly assets: AssetManager = assetManager
+  public readonly achievementSystem: AchievementSystem
+  public readonly targetSystem: TargetSystem
 
   // 遊戲資料
   private seed: string = ''
@@ -61,6 +65,8 @@ export class Game {
     this.audioSystem = new AudioSystem(this)
     this.input = new InputManager(this)
     this.renderer = new Renderer(this)
+    this.achievementSystem = new AchievementSystem(this)
+    this.targetSystem = new TargetSystem(this)
 
     // 綁定視窗調整
     window.addEventListener('resize', () => this.resize())
@@ -231,13 +237,25 @@ export class Game {
   /** 更新遊戲邏輯 */
   private update(dt: number): void {
     const pressedKeys = this.input.getNewlyPressedKeys()
+    this.achievementSystem.update(dt)
 
     // 根據狀態更新
     switch (this.state) {
       case GameState.PLAYING:
         this.handlePlayingInput(pressedKeys)
+        this.targetSystem.update(dt)
         this.playerSystem.update(dt)
         this.mapSystem.update(dt)
+        break
+      case GameState.ACHIEVEMENTS:
+        for (const key of pressedKeys) {
+          this.uiSystem.handleAchievementsInput(key)
+        }
+        break
+      case GameState.TARGET_SELECT:
+        for (const key of pressedKeys) {
+          this.uiSystem.handleTargetSelectInput(key)
+        }
         break
       case GameState.PAUSED:
         for (const key of pressedKeys) {
@@ -303,6 +321,9 @@ export class Game {
   /** 處理遊玩狀態下的鍵盤操作 */
   private handlePlayingInput(pressedKeys: string[]): void {
     for (const key of pressedKeys) {
+      if (this.targetSystem.isActive() && ['ArrowUp', 'KeyW', 'ArrowDown', 'KeyS', 'ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD', 'KeyE', 'Space', 'Enter'].includes(key)) {
+        this.targetSystem.stopGoal('手動控制已接管，中斷目標模式。')
+      }
       switch (key) {
         case 'ArrowUp':
         case 'KeyW':
@@ -334,6 +355,13 @@ export class Game {
         case 'KeyC':
           this.openCrafting()
           return
+        case 'KeyT':
+          this.openTargetSelect()
+          return
+        case 'KeyJ':
+        case 'Tab':
+          this.openAchievements()
+          return
         case 'KeyM':
           this.openSaveLoad()
           return
@@ -363,7 +391,19 @@ export class Game {
         this.uiSystem.render(this.ctx)
         if (this.state === GameState.PAUSED) {
           this.renderer.renderPauseOverlay()
+        } else if (this.targetSystem.isActive()) {
+          this.uiSystem.renderTargetHud(this.ctx)
         }
+        break
+      case GameState.ACHIEVEMENTS:
+        this.renderer.renderGame(alpha)
+        this.uiSystem.render(this.ctx)
+        this.uiSystem.renderAchievements(this.ctx)
+        break
+      case GameState.TARGET_SELECT:
+        this.renderer.renderGame(alpha)
+        this.uiSystem.render(this.ctx)
+        this.uiSystem.renderTargetSelect(this.ctx)
         break
       case GameState.EVENT:
         this.renderer.renderGame(alpha)
@@ -400,6 +440,9 @@ export class Game {
         this.uiSystem.renderVictory(this.ctx)
         break
     }
+
+    // 成就解鎖橫幅 (置頂繪製)
+    this.uiSystem.renderAchievementToast(this.ctx)
 
     // 偵錯資訊
     if (this.input.isDebugMode()) {
@@ -465,6 +508,7 @@ export class Game {
     this.combatSystem.reset()
     this.craftSystem.reset()
     this.uiSystem.reset()
+    this.targetSystem.stopGoal()
 
     // 設定初始狀態並觸發開場事件
     this.setState(GameState.PLAYING)
@@ -587,6 +631,7 @@ export class Game {
       }
     }
 
+    this.achievementSystem?.checkAchievements()
     const newHour = player.stats.currentHour
     // 06:00 日出廣播
     if ((oldHour < 6 || oldHour >= 18) && (newHour >= 6 && newHour < 18)) {
@@ -604,6 +649,27 @@ export class Game {
   isNight(): boolean {
     const hour = this.playerSystem?.player?.stats?.currentHour ?? 8
     return hour >= 18 || hour < 6
+  }
+
+  /** 開啟成就圖鑑 */
+  openAchievements(): void {
+    this.setState(GameState.ACHIEVEMENTS)
+  }
+
+  /** 關閉成就圖鑑 */
+  closeAchievements(): void {
+    const target = this.previousState === GameState.ACHIEVEMENTS ? GameState.PLAYING : this.previousState
+    this.setState(target)
+  }
+
+  /** 開啟目標模式選單 */
+  openTargetSelect(): void {
+    this.setState(GameState.TARGET_SELECT)
+  }
+
+  /** 關閉目標模式選單 */
+  closeTargetSelect(): void {
+    this.setState(GameState.PLAYING)
   }
 
   /** 開啟製作介面 */

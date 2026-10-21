@@ -300,6 +300,10 @@ export class CombatSystem {
 
     // 經驗值 (這裡轉換為統計)
     player.stats.combatsWon++
+    if (this.enemy.id === 'wild_boar') player.flags['combat_wild_boar_won'] = true
+    if (this.enemy.id === 'jungle_snake') player.flags['combat_jungle_snake_won'] = true
+    if (this.enemy.id === 'ruins_guardian') player.flags['combat_ruins_guardian_won'] = true
+    this.game.achievementSystem?.checkAchievements()
 
     // 掉落物品
     for (const loot of this.enemy.loot) {

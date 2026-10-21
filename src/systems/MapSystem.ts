@@ -472,6 +472,7 @@ export class MapSystem {
     player.stats.tilesExplored++
     player.discoveredTiles.add(`${newX},${newY}`)
     this.game.advanceTime(15)
+    this.game.achievementSystem?.checkAchievements()
 
     // 更新視野
     this.updateVision()
@@ -532,6 +533,7 @@ export class MapSystem {
         availableRes.lastHarvested = player.stats.daysSurvived
         this.game['uiSystem'].addMessage(`採集獲得: ${availableRes.itemId} x1`, 'success')
         this.game.advanceTime(15)
+    this.game.achievementSystem?.checkAchievements()
         this.game['renderer'].markMapDirty()
         return true
         this.game['renderer'].markMapDirty()

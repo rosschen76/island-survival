@@ -122,7 +122,8 @@ export class InputManager {
       'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
       'KeyW', 'KeyA', 'KeyS', 'KeyD',
       'Space', 'Enter', 'Escape', 'Tab',
-      'KeyE', 'KeyI', 'KeyC', 'KeyM'
+      'KeyE', 'KeyI', 'KeyC', 'KeyM',
+      'KeyT', 'KeyJ'
     ]
     return gameKeys.includes(key)
   }
@@ -149,7 +150,7 @@ export class InputManager {
 
   private onWheel(e: WheelEvent): void {
     e.preventDefault()
-    // 滾輪縮放等功能
+    this.game.uiSystem.handleWheel(e.deltaY)
   }
 
   // === 公開 API ===

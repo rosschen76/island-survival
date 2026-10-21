@@ -22,6 +22,9 @@ export class UISystem {
   private saveLoadSelection: number = 0
   private inventorySelection: number = 0
   private inventoryScroll: number = 0
+  private achievementsScroll: number = 0
+  private achievementsSelection: number = 0
+  private targetSelectSelection: number = 0
 
   constructor(game: Game) {
     this.game = game
@@ -153,6 +156,8 @@ export class UISystem {
       { key: 'I', desc: '背包' },
       { key: 'C', desc: '製作' },
       { key: 'M', desc: '存檔/讀檔' },
+      { key: 'T', desc: '🎯 目標模式' },
+      { key: 'J/Tab', desc: '🏆 成就圖鑑' },
       { key: 'ESC', desc: '暫停/選單' }
     ]
 
@@ -957,9 +962,7 @@ export class UISystem {
         this.game.openSaveLoad('load')
         break
       case 'gallery':
-        this.game['playerSystem'].loadEndingProgress()
-        const unlocked = this.game['playerSystem'].player.stats.endingsUnlocked
-        this.addMessage(`已解鎖結局 (${unlocked.length}/6): ${unlocked.length > 0 ? unlocked.join(', ') : '尚無紀錄'}`, 'info', 4000)
+        this.game.openAchievements()
         break
       case 'settings':
         const enabled = this.game['audioSystem'].toggleMute()
@@ -1082,6 +1085,9 @@ export class UISystem {
     this.saveLoadSelection = 0
     this.inventorySelection = 0
     this.inventoryScroll = 0
+    this.achievementsScroll = 0
+    this.achievementsSelection = 0
+    this.targetSelectSelection = 0
     this.saveLoadMode = 'load'
   }
 
@@ -1089,4 +1095,576 @@ export class UISystem {
   onResize(width: number, height: number): void {
     // UI 會自適應
   }
+
+  /** 處理滑鼠滾輪滾動 */
+  handleWheel(deltaY: number): void {
+    const state = this.game.getState()
+    if (state === GameState.ACHIEVEMENTS) {
+      const achs = this.game.achievementSystem.getAllAchievements()
+      const maxScroll = Math.max(0, achs.length - 5)
+      if (deltaY > 0) {
+        this.achievementsScroll = Math.min(maxScroll, this.achievementsScroll + 1)
+        this.achievementsSelection = Math.min(achs.length - 1, Math.max(this.achievementsScroll, this.achievementsSelection + 1))
+      } else {
+        this.achievementsScroll = Math.max(0, this.achievementsScroll - 1)
+        this.achievementsSelection = Math.max(0, Math.min(this.achievementsScroll + 4, this.achievementsSelection - 1))
+      }
+    } else if (state === GameState.INVENTORY) {
+      const inv = this.game['playerSystem'].player.inventory
+      const maxScroll = Math.max(0, inv.length - 8)
+      if (deltaY > 0) {
+        this.inventoryScroll = Math.min(maxScroll, this.inventoryScroll + 1)
+      } else {
+        this.inventoryScroll = Math.max(0, this.inventoryScroll - 1)
+      }
+    } else if (state === GameState.TARGET_SELECT) {
+      const goals = this.game.targetSystem.goals
+      const maxItems = goals.length + (this.game.targetSystem.isActive() ? 1 : 0)
+      if (deltaY > 0) {
+        this.targetSelectSelection = Math.min(maxItems - 1, this.targetSelectSelection + 1)
+      } else {
+        this.targetSelectSelection = Math.max(0, this.targetSelectSelection - 1)
+      }
+    }
+  }
+
+  /** 渲染成就圖鑑介面 */
+  renderAchievements(ctx: CanvasRenderingContext2D): void {
+    const { viewWidth, viewHeight } = this.game['renderer'] as any
+    const w = viewWidth
+    const h = viewHeight
+    const achSystem = this.game.achievementSystem
+    const achievements = achSystem.getAllAchievements()
+    const unlockedCount = achSystem.getUnlockedCount()
+    const totalCount = achievements.length
+
+    ctx.save()
+
+    // 半透明背景
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.86)'
+    ctx.fillRect(0, 0, w, h)
+
+    // 面板尺寸
+    const panelW = Math.min(780, w - 40)
+    const panelH = Math.min(560, h - 40)
+    const panelX = (w - panelW) / 2
+    const panelY = (h - panelH) / 2
+
+    // 面板底色漸層
+    const grad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH)
+    grad.addColorStop(0, '#1a1928')
+    grad.addColorStop(1, '#0e0e18')
+    ctx.fillStyle = grad
+    ctx.fillRect(panelX, panelY, panelW, panelH)
+
+    // 金色奢華邊框
+    ctx.strokeStyle = '#fdcb6e'
+    ctx.lineWidth = 2
+    ctx.strokeRect(panelX, panelY, panelW, panelH)
+
+    // 標題區域
+    ctx.fillStyle = '#fdcb6e'
+    ctx.font = 'bold 24px "Microsoft JhengHei", sans-serif'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText('🏆 海島生存成就圖鑑', panelX + 24, panelY + 40)
+
+    // 解鎖計數與進度百分比
+    const pct = Math.round((unlockedCount / totalCount) * 100)
+    ctx.fillStyle = '#ffeaa7'
+    ctx.font = 'bold 15px "Microsoft JhengHei", sans-serif'
+    ctx.textAlign = 'right'
+    ctx.fillText(`已解鎖: ${unlockedCount} / ${totalCount} 項 (${pct}%)`, panelX + panelW - 24, panelY + 38)
+
+    // 分隔線
+    ctx.strokeStyle = 'rgba(253, 203, 110, 0.3)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(panelX + 20, panelY + 54)
+    ctx.lineTo(panelX + panelW - 20, panelY + 54)
+    ctx.stroke()
+
+    // 列表區域設定
+    const listX = panelX + 20
+    const listY = panelY + 66
+    const listW = panelW - 40
+    const cardH = 74
+    const cardGap = 8
+    const visibleCards = 5
+
+    const categoryNames: Record<string, { name: string; color: string }> = {
+      exploration: { name: '探索', color: '#74b9ff' },
+      gathering: { name: '收集', color: '#55efc4' },
+      survival: { name: '生存', color: '#ffeaa7' },
+      craft_combat: { name: '工藝與戰鬥', color: '#ff7675' },
+      endings: { name: '傳奇結局', color: '#a29bfe' }
+    }
+
+    for (let i = 0; i < visibleCards; i++) {
+      const idx = this.achievementsScroll + i
+      if (idx >= achievements.length) break
+
+      const ach = achievements[idx]
+      const cardY = listY + i * (cardH + cardGap)
+      const isSelected = this.achievementsSelection === idx
+      const isUnlocked = achSystem.isUnlocked(ach.id)
+      const progress = achSystem.getAchievementProgress(ach.id)
+
+      // 卡片底色
+      if (isSelected) {
+        ctx.fillStyle = 'rgba(253, 203, 110, 0.16)'
+      } else if (isUnlocked) {
+        ctx.fillStyle = 'rgba(30, 48, 35, 0.65)'
+      } else {
+        ctx.fillStyle = 'rgba(18, 18, 28, 0.6)'
+      }
+      ctx.fillRect(listX, cardY, listW, cardH)
+
+      // 卡片外框
+      if (isSelected) {
+        ctx.strokeStyle = '#fdcb6e'
+        ctx.lineWidth = 2
+      } else if (isUnlocked) {
+        ctx.strokeStyle = 'rgba(85, 239, 196, 0.5)'
+        ctx.lineWidth = 1
+      } else {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'
+        ctx.lineWidth = 1
+      }
+      ctx.strokeRect(listX, cardY, listW, cardH)
+
+      // 圖示
+      ctx.font = '32px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(ach.icon, listX + 36, cardY + cardH / 2)
+
+      // 成就分類徽章
+      const catInfo = categoryNames[ach.category] || { name: '其他', color: '#b2bec3' }
+      ctx.font = '11px "Microsoft JhengHei", sans-serif'
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+      ctx.fillStyle = catInfo.color
+      ctx.fillText(`[${catInfo.name}]`, listX + 72, cardY + 24)
+
+      // 標題
+      ctx.font = 'bold 16px "Microsoft JhengHei", sans-serif'
+      ctx.fillStyle = isUnlocked ? '#ffeaa7' : '#ffffff'
+      ctx.fillText(ach.title, listX + 130, cardY + 24)
+
+      // 說明
+      ctx.font = '13px "Microsoft JhengHei", sans-serif'
+      ctx.fillStyle = isUnlocked ? '#dfe6e9' : '#888888'
+      ctx.fillText(ach.description, listX + 72, cardY + 46)
+
+      // 右側狀態：已解鎖 vs 進度條
+      const rightX = listX + listW - 20
+      if (isUnlocked) {
+        ctx.font = 'bold 15px "Microsoft JhengHei", sans-serif'
+        ctx.fillStyle = '#55efc4'
+        ctx.textAlign = 'right'
+        ctx.fillText('✨ 已達成', rightX, cardY + 36)
+      } else {
+        // 進度條
+        const barW = 150
+        const barH = 12
+        const barX = rightX - barW
+        const barY = cardY + 22
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+        ctx.fillRect(barX, barY, barW, barH)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
+        ctx.lineWidth = 1
+        ctx.strokeRect(barX, barY, barW, barH)
+
+        const ratio = Math.max(0, Math.min(1, progress.current / progress.max))
+        ctx.fillStyle = '#74b9ff'
+        ctx.fillRect(barX, barY, barW * ratio, barH)
+
+        // 進度數值
+        ctx.font = '11px monospace'
+        ctx.fillStyle = '#b2bec3'
+        ctx.textAlign = 'right'
+        ctx.fillText(`${Math.floor(progress.current)} / ${progress.max}`, rightX, cardY + 50)
+      }
+    }
+
+    // 捲動指示條 (Scrollbar)
+    const scrollbarW = 4
+    const scrollbarH = (visibleCards * (cardH + cardGap)) - cardGap
+    const scrollbarX = panelX + panelW - 12
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'
+    ctx.fillRect(scrollbarX, listY, scrollbarW, scrollbarH)
+
+    const thumbRatio = Math.min(1, visibleCards / achievements.length)
+    const thumbH = Math.max(20, scrollbarH * thumbRatio)
+    const maxScroll = Math.max(1, achievements.length - visibleCards)
+    const thumbY = listY + (this.achievementsScroll / maxScroll) * (scrollbarH - thumbH)
+    ctx.fillStyle = '#fdcb6e'
+    ctx.fillRect(scrollbarX, thumbY, scrollbarW, thumbH)
+
+    // 底部控制操作指引
+    ctx.fillStyle = '#888'
+    ctx.font = '12px "Microsoft JhengHei", sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText('↑↓/滾輪 選擇  |  PageUp/Down 翻頁  |  ESC/J/Tab 返回遊戲', w / 2, panelY + panelH - 14)
+
+    ctx.restore()
+  }
+
+  /** 處理成就介面鍵盤操作 */
+  handleAchievementsInput(key: string): boolean {
+    const achs = this.game.achievementSystem.getAllAchievements()
+    const total = achs.length
+
+    switch (key) {
+      case 'ArrowUp':
+      case 'KeyW':
+        this.achievementsSelection = Math.max(0, this.achievementsSelection - 1)
+        if (this.achievementsSelection < this.achievementsScroll) {
+          this.achievementsScroll = this.achievementsSelection
+        }
+        this.game['audioSystem'].playSFX('menu_select')
+        return true
+      case 'ArrowDown':
+      case 'KeyS':
+        this.achievementsSelection = Math.min(total - 1, this.achievementsSelection + 1)
+        if (this.achievementsSelection >= this.achievementsScroll + 5) {
+          this.achievementsScroll = this.achievementsSelection - 4
+        }
+        this.game['audioSystem'].playSFX('menu_select')
+        return true
+      case 'PageUp':
+        this.achievementsSelection = Math.max(0, this.achievementsSelection - 5)
+        this.achievementsScroll = Math.max(0, this.achievementsScroll - 5)
+        return true
+      case 'PageDown':
+        this.achievementsSelection = Math.min(total - 1, this.achievementsSelection + 5)
+        this.achievementsScroll = Math.min(Math.max(0, total - 5), this.achievementsScroll + 5)
+        return true
+      case 'Escape':
+      case 'KeyJ':
+      case 'Tab':
+        this.game.closeAchievements()
+        return true
+    }
+    return false
+  }
+
+  /** 渲染目標模式選擇介面 */
+  renderTargetSelect(ctx: CanvasRenderingContext2D): void {
+    const { viewWidth, viewHeight } = this.game['renderer'] as any
+    const w = viewWidth
+    const h = viewHeight
+    const targetSystem = this.game.targetSystem
+    const goals = targetSystem.goals
+    const isTargetActive = targetSystem.isActive()
+    const activeGoal = targetSystem.getActiveGoal()
+
+    ctx.save()
+
+    // 半透明背景
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.88)'
+    ctx.fillRect(0, 0, w, h)
+
+    // 面板尺寸
+    const panelW = Math.min(760, w - 40)
+    const panelH = Math.min(560, h - 40)
+    const panelX = (w - panelW) / 2
+    const panelY = (h - panelH) / 2
+
+    // 面板背景
+    const grad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH)
+    grad.addColorStop(0, '#10222e')
+    grad.addColorStop(1, '#0b131a')
+    ctx.fillStyle = grad
+    ctx.fillRect(panelX, panelY, panelW, panelH)
+
+    // 霓虹青色邊框
+    ctx.strokeStyle = '#00cec9'
+    ctx.lineWidth = 2
+    ctx.strokeRect(panelX, panelY, panelW, panelH)
+
+    // 標題
+    ctx.fillStyle = '#00cec9'
+    ctx.font = 'bold 22px "Microsoft JhengHei", sans-serif'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText('🎯 目標模式 (AI 自動生存與收集)', panelX + 24, panelY + 38)
+
+    // 說明副標題
+    ctx.fillStyle = '#81ecec'
+    ctx.font = '13px "Microsoft JhengHei", sans-serif'
+    ctx.fillText('選定目標後，主角將全自動尋路、採集物資、17:00傍晚或體能不足時自動回帳篷就寢！', panelX + 24, panelY + 58)
+
+    // 當前運行狀態橫幅
+    const statusBoxY = panelY + 70
+    if (isTargetActive && activeGoal) {
+      ctx.fillStyle = 'rgba(0, 206, 201, 0.15)'
+      ctx.fillRect(panelX + 20, statusBoxY, panelW - 40, 32)
+      ctx.strokeStyle = '#00cec9'
+      ctx.lineWidth = 1
+      ctx.strokeRect(panelX + 20, statusBoxY, panelW - 40, 32)
+
+      ctx.font = 'bold 13px "Microsoft JhengHei", sans-serif'
+      ctx.fillStyle = '#55efc4'
+      ctx.textAlign = 'left'
+      ctx.fillText(`⚡ 運作中：【${activeGoal.title}】 | 狀態：${targetSystem.getStatusMessage()}`, panelX + 32, statusBoxY + 21)
+    } else {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
+      ctx.fillRect(panelX + 20, statusBoxY, panelW - 40, 32)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'
+      ctx.lineWidth = 1
+      ctx.strokeRect(panelX + 20, statusBoxY, panelW - 40, 32)
+
+      ctx.font = '13px "Microsoft JhengHei", sans-serif'
+      ctx.fillStyle = '#b2bec3'
+      ctx.textAlign = 'left'
+      ctx.fillText('💡 目前手動控制中。請自下方清單選擇目標啟動自動化：', panelX + 32, statusBoxY + 21)
+    }
+
+    // 選項列表
+    const totalOptions = goals.length + (isTargetActive ? 1 : 0)
+    const listX = panelX + 20
+    const listY = statusBoxY + 42
+    const listW = panelW - 40
+    const cardH = 48
+    const cardGap = 6
+    const visibleCount = Math.min(7, totalOptions)
+
+    // 計算滾動窗口
+    const scrollOffset = Math.max(0, Math.min(totalOptions - visibleCount, this.targetSelectSelection - 3))
+
+    for (let i = 0; i < visibleCount; i++) {
+      const idx = scrollOffset + i
+      if (idx >= totalOptions) break
+
+      const cardY = listY + i * (cardH + cardGap)
+      const isSelected = this.targetSelectSelection === idx
+      const isStopOption = idx === goals.length
+
+      if (isStopOption) {
+        // 停止按鈕
+        ctx.fillStyle = isSelected ? 'rgba(255, 107, 107, 0.25)' : 'rgba(255, 107, 107, 0.1)'
+        ctx.fillRect(listX, cardY, listW, cardH)
+        ctx.strokeStyle = isSelected ? '#ff6b6b' : 'rgba(255, 107, 107, 0.4)'
+        ctx.lineWidth = isSelected ? 2 : 1
+        ctx.strokeRect(listX, cardY, listW, cardH)
+
+        ctx.font = 'bold 15px "Microsoft JhengHei", sans-serif'
+        ctx.fillStyle = '#ff6b6b'
+        ctx.textAlign = 'left'
+        ctx.fillText('🛑 停止當前目標模式 (立即恢復手動控制)', listX + 20, cardY + 28)
+      } else {
+        const goal = goals[idx]
+        const isThisGoalActive = activeGoal?.id === goal.id
+
+        if (isSelected) {
+          ctx.fillStyle = 'rgba(0, 206, 201, 0.22)'
+        } else if (isThisGoalActive) {
+          ctx.fillStyle = 'rgba(0, 206, 201, 0.1)'
+        } else {
+          ctx.fillStyle = 'rgba(15, 25, 35, 0.6)'
+        }
+        ctx.fillRect(listX, cardY, listW, cardH)
+
+        if (isSelected) {
+          ctx.strokeStyle = '#00cec9'
+          ctx.lineWidth = 2
+        } else if (isThisGoalActive) {
+          ctx.strokeStyle = '#55efc4'
+          ctx.lineWidth = 1.5
+        } else {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'
+          ctx.lineWidth = 1
+        }
+        ctx.strokeRect(listX, cardY, listW, cardH)
+
+        // 圖示
+        ctx.font = '22px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(goal.icon, listX + 26, cardY + cardH / 2)
+
+        // 標題
+        ctx.font = 'bold 14px "Microsoft JhengHei", sans-serif'
+        ctx.fillStyle = isThisGoalActive ? '#55efc4' : (isSelected ? '#81ecec' : '#ffffff')
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'alphabetic'
+        ctx.fillText(goal.title, listX + 54, cardY + 20)
+
+        // 說明
+        ctx.font = '12px "Microsoft JhengHei", sans-serif'
+        ctx.fillStyle = '#a4b0be'
+        ctx.fillText(goal.description, listX + 54, cardY + 38)
+
+        // 右側狀態標籤
+        ctx.textAlign = 'right'
+        if (isThisGoalActive) {
+          ctx.font = 'bold 13px "Microsoft JhengHei", sans-serif'
+          ctx.fillStyle = '#55efc4'
+          ctx.fillText('● 正在執行', listX + listW - 16, cardY + 28)
+        } else {
+          ctx.font = '12px "Microsoft JhengHei", sans-serif'
+          ctx.fillStyle = '#74b9ff'
+          ctx.fillText('[點擊或按 Enter 啟動]', listX + listW - 16, cardY + 28)
+        }
+      }
+    }
+
+    // 底部控制操作指引
+    ctx.fillStyle = '#888'
+    ctx.font = '12px "Microsoft JhengHei", sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText('↑↓/滾輪 選擇目標  |  Enter/Space 確認啟動  |  ESC/T 關閉選單', w / 2, panelY + panelH - 12)
+
+    ctx.restore()
+  }
+
+  /** 處理目標模式選單輸入 */
+  handleTargetSelectInput(key: string): boolean {
+    const targetSystem = this.game.targetSystem
+    const goals = targetSystem.goals
+    const totalOptions = goals.length + (targetSystem.isActive() ? 1 : 0)
+
+    switch (key) {
+      case 'ArrowUp':
+      case 'KeyW':
+        this.targetSelectSelection = (this.targetSelectSelection - 1 + totalOptions) % totalOptions
+        this.game['audioSystem'].playSFX('menu_select')
+        return true
+      case 'ArrowDown':
+      case 'KeyS':
+        this.targetSelectSelection = (this.targetSelectSelection + 1) % totalOptions
+        this.game['audioSystem'].playSFX('menu_select')
+        return true
+      case 'Enter':
+      case 'Space':
+        if (this.targetSelectSelection === goals.length) {
+          // 點擊了停止選項
+          targetSystem.stopGoal()
+        } else {
+          const selectedGoal = goals[this.targetSelectSelection]
+          if (targetSystem.getActiveGoal()?.id === selectedGoal.id) {
+            // 重複點擊運作中的目標，停止目標模式
+            targetSystem.stopGoal()
+          } else {
+            targetSystem.startGoal(selectedGoal.id)
+          }
+        }
+        this.game['audioSystem'].playSFX('menu_confirm')
+        this.game.closeTargetSelect()
+        return true
+      case 'Escape':
+      case 'KeyT':
+        this.game.closeTargetSelect()
+        return true
+    }
+    return false
+  }
+
+  /** 渲染遊戲中頂部目標模式狀態 HUD */
+  renderTargetHud(ctx: CanvasRenderingContext2D): void {
+    const { viewWidth } = this.game['renderer'] as any
+    const w = viewWidth
+    const targetSystem = this.game.targetSystem
+    if (!targetSystem.isActive()) return
+
+    const goal = targetSystem.getActiveGoal()
+    if (!goal) return
+
+    ctx.save()
+
+    const hudW = Math.min(560, w - 40)
+    const hudH = 46
+    const hudX = (w - hudW) / 2
+    const hudY = 10
+
+    // 背景
+    const grad = ctx.createLinearGradient(hudX, hudY, hudX, hudY + hudH)
+    grad.addColorStop(0, 'rgba(10, 25, 35, 0.96)')
+    grad.addColorStop(1, 'rgba(5, 15, 25, 0.96)')
+    ctx.fillStyle = grad
+    ctx.fillRect(hudX, hudY, hudW, hudH)
+
+    // 呼吸動態霓虹邊框
+    const pulse = 0.6 + Math.sin(Date.now() / 250) * 0.4
+    ctx.strokeStyle = `rgba(0, 206, 201, ${pulse})`
+    ctx.lineWidth = 1.8
+    ctx.strokeRect(hudX, hudY, hudW, hudH)
+
+    // 第一行：目標標題與快捷鍵提醒
+    ctx.font = 'bold 14px "Microsoft JhengHei", sans-serif'
+    ctx.fillStyle = '#00cec9'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText(`🎯 ${goal.icon} ${goal.title}`, hudX + 14, hudY + 20)
+
+    ctx.font = '11px "Microsoft JhengHei", monospace'
+    ctx.fillStyle = '#81ecec'
+    ctx.textAlign = 'right'
+    ctx.fillText('[按 T 或 WASD 停止]', hudX + hudW - 14, hudY + 20)
+
+    // 第二行：AI 即時行動狀態
+    ctx.font = '12px "Microsoft JhengHei", sans-serif'
+    ctx.fillStyle = '#dfe6e9'
+    ctx.textAlign = 'left'
+    ctx.fillText(`🤖 ${targetSystem.getStatusMessage()}`, hudX + 14, hudY + 38)
+
+    ctx.restore()
+  }
+
+  /** 渲染成就達成置頂彈出橫幅 */
+  renderAchievementToast(ctx: CanvasRenderingContext2D): void {
+    const achSystem = this.game.achievementSystem
+    const unlock = achSystem.getRecentUnlock()
+    if (!unlock) return
+
+    const { viewWidth } = this.game['renderer'] as any
+    const w = viewWidth
+
+    ctx.save()
+
+    const toastW = 320
+    const toastH = 64
+    const toastX = w - toastW - 16
+    const toastY = 16
+
+    // 金色奢華漸層背景
+    const grad = ctx.createLinearGradient(toastX, toastY, toastX, toastY + toastH)
+    grad.addColorStop(0, 'rgba(40, 30, 10, 0.96)')
+    grad.addColorStop(1, 'rgba(20, 15, 5, 0.96)')
+    ctx.fillStyle = grad
+    ctx.fillRect(toastX, toastY, toastW, toastH)
+
+    ctx.strokeStyle = '#fdcb6e'
+    ctx.lineWidth = 2
+    ctx.strokeRect(toastX, toastY, toastW, toastH)
+
+    // 圖示
+    ctx.font = '28px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(unlock.icon, toastX + 32, toastY + toastH / 2)
+
+    // 達成文字
+    ctx.font = 'bold 12px "Microsoft JhengHei", sans-serif'
+    ctx.fillStyle = '#fdcb6e'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText('🏆 成就達成！', toastX + 60, toastY + 24)
+
+    // 成就名稱
+    ctx.font = 'bold 15px "Microsoft JhengHei", sans-serif'
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(unlock.title, toastX + 60, toastY + 46)
+
+    // 時間倒數進度線
+    const lineRatio = Math.max(0, Math.min(1, unlock.timer / 3.5))
+    ctx.fillStyle = '#fdcb6e'
+    ctx.fillRect(toastX, toastY + toastH - 3, toastW * lineRatio, 3)
+
+    ctx.restore()
+  }
+
 }
