@@ -115,6 +115,8 @@ export interface PlayerState {
 /** 玩家統計 */
 export interface PlayerStats {
   daysSurvived: number
+  currentHour: number
+  currentMinute: number
   tilesExplored: number
   eventsCompleted: number
   combatsWon: number

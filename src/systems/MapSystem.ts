@@ -471,6 +471,7 @@ export class MapSystem {
     player.stamina -= cost
     player.stats.tilesExplored++
     player.discoveredTiles.add(`${newX},${newY}`)
+    this.game.advanceTime(15)
 
     // 更新視野
     this.updateVision()
@@ -480,6 +481,26 @@ export class MapSystem {
       const eventId = targetTile.eventId
       targetTile.eventId = undefined // 事件只觸發一次 (除非可重複)
       this.game.triggerEvent(eventId)
+
+    } else if (targetTile.type !== TileType.BASE) {
+      const isNight = this.game.isNight()
+      const ambushChance = isNight ? 0.18 : 0.03
+      const canEncounter = isNight || [TileType.FOREST, TileType.JUNGLE, TileType.CAVE].includes(targetTile.type)
+
+      if (canEncounter && this.random.next() < ambushChance) {
+        const beasts = targetTile.type === TileType.CAVE
+          ? ['cave_bat_swarm']
+          : ['wild_boar', 'jungle_snake']
+        const chosenBeast = beasts[this.random.nextInt(beasts.length)]
+        if (isNight) {
+          this.game['uiSystem'].addMessage('⚠️【夜間遭遇】黑暗中一雙血紅的雙眼猛然撲出！野獸發動了夜襲！', 'warning')
+        } else {
+          this.game['uiSystem'].addMessage('⚠️ 草叢中竄出兇猛的野獸！', 'warning')
+        }
+        this.game.startCombat(chosenBeast)
+      }
+
+
     }
 
     // 播放移動音效
@@ -510,8 +531,11 @@ export class MapSystem {
         availableRes.quantity--
         availableRes.lastHarvested = player.stats.daysSurvived
         this.game['uiSystem'].addMessage(`採集獲得: ${availableRes.itemId} x1`, 'success')
+        this.game.advanceTime(15)
         this.game['renderer'].markMapDirty()
         return true
+        this.game['renderer'].markMapDirty()
+  
       }
     }
 
@@ -522,6 +546,7 @@ export class MapSystem {
     }
 
     player.stamina -= this.game.config.staminaCostExplore
+    this.game.advanceTime(30)
 
     // 探索可能發現隱藏資源或事件
     const roll = this.random.next()
@@ -530,6 +555,7 @@ export class MapSystem {
       // 觸發隨機事件
       const eventId = this.generateEventId(tile.type, player.position.x, player.position.y)
       this.game.triggerEvent(eventId)
+
     } else if (roll < 0.7) {
       // 根據地形隨機找到 1 個基礎資源
       const fallbackItem = tile.type === TileType.FOREST || tile.type === TileType.JUNGLE ? 'wood'
@@ -560,6 +586,8 @@ export class MapSystem {
     player.stamina = Math.min(player.maxStamina, player.stamina + this.game.config.staminaRegenPerRest)
     player.health = Math.min(player.maxHealth, player.health + this.game.config.healthRegenPerRest)
     player.stats.daysSurvived++
+    player.stats.currentHour = 6
+    player.stats.currentMinute = 0
 
     // 檢查資源再生
     const currentDay = player.stats.daysSurvived

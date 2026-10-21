@@ -74,17 +74,22 @@ export class UISystem {
   /** 渲染狀態列 */
   private renderStatusBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
     const player = this.game['playerSystem'].player
-    const barW = 180
+    const barW = 210
     const barH = 18
-    const gap = 8
+    const gap = 7
     let curY = y
 
+    const hour = player.stats.currentHour ?? 8
+    const minute = player.stats.currentMinute ?? 0
+    const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+    const isNight = this.game.isNight()
+
     // 背景面板
-    ctx.fillStyle = 'rgba(15, 15, 26, 0.9)'
-    ctx.fillRect(x - 5, y - 5, barW + 10, 90)
-    ctx.strokeStyle = UI_COLORS.panelBorder
-    ctx.lineWidth = 1
-    ctx.strokeRect(x - 5, y - 5, barW + 10, 90)
+    ctx.fillStyle = 'rgba(15, 15, 26, 0.92)'
+    ctx.fillRect(x - 5, y - 5, barW + 10, 118)
+    ctx.strokeStyle = isNight ? '#ff7675' : UI_COLORS.panelBorder
+    ctx.lineWidth = 1.5
+    ctx.strokeRect(x - 5, y - 5, barW + 10, 118)
 
     // 體力
     this.renderBar(ctx, x, curY, barW, barH, player.stamina, player.maxStamina, UI_COLORS.stamina, '體力')
@@ -94,19 +99,22 @@ export class UISystem {
     this.renderBar(ctx, x, curY, barW, barH, player.health, player.maxHealth, UI_COLORS.health, '健康')
     curY += barH + gap
 
-    // 位置座標
-    ctx.fillStyle = UI_COLORS.textDim
-    ctx.font = '12px monospace'
+    // 時間與晝夜 (24小時制: 06:00日出, 18:00日落)
+    ctx.font = 'bold 13px "Microsoft JhengHei", sans-serif'
     ctx.textAlign = 'left'
-    ctx.fillText(`座標: (${player.position.x}, ${player.position.y})`, x, curY + 14)
+    if (isNight) {
+      ctx.fillStyle = '#ff7675'
+      ctx.fillText(`⏰ ${timeStr} 🌙 夜間 (野獸出沒⚠️)`, x, curY + 14)
+    } else {
+      ctx.fillStyle = '#ffe66d'
+      ctx.fillText(`⏰ ${timeStr} ☀️ 白天 (06:00-18:00)`, x, curY + 14)
+    }
     curY += 20
 
-    // 種子
-    const seed = this.game.getSeed()
-    if (seed) {
-      ctx.fillStyle = UI_COLORS.textDim
-      ctx.fillText(`種子: ${seed}`, x, curY + 14)
-    }
+    // 天數與座標
+    ctx.fillStyle = '#ddd'
+    ctx.font = '12px "Microsoft JhengHei", monospace'
+    ctx.fillText(`第 ${player.stats.daysSurvived} 天 | 座標: (${player.position.x}, ${player.position.y})`, x, curY + 14)
   }
 
   /** 渲染單一狀態條 */
@@ -334,24 +342,24 @@ export class UISystem {
         }
 
         // 圖示
-        this.drawItemIcon(ctx, item.id, listX + 14, itemY + 10, 26)
+        this.drawItemIcon(ctx, item.id, listX + 12, itemY + 8, 34)
 
         // 名稱
         ctx.textAlign = 'left'
         ctx.textBaseline = 'alphabetic'
         ctx.fillStyle = '#fff'
         ctx.font = 'bold 15px "Microsoft JhengHei", sans-serif'
-        ctx.fillText(def?.name || item.id, listX + 48, itemY + 20)
+        ctx.fillText(def?.name || item.id, listX + 54, itemY + 20)
 
         // 數量/耐久度
         ctx.font = '12px "Microsoft JhengHei", sans-serif'
         if (def?.stackable && item.quantity >= 1) {
           ctx.fillStyle = '#aaa'
-          ctx.fillText(`數量: x${item.quantity}`, listX + 48, itemY + 39)
+          ctx.fillText(`數量: x${item.quantity}`, listX + 54, itemY + 39)
         } else if (def?.durability && item.durability !== undefined) {
           const durPercent = item.durability / (item.maxDurability || 1)
           ctx.fillStyle = durPercent > 0.3 ? '#6bcb77' : (durPercent > 0 ? '#ffe66d' : '#ff6b6b')
-          ctx.fillText(`耐久: ${item.durability}/${item.maxDurability}`, listX + 48, itemY + 39)
+          ctx.fillText(`耐久: ${item.durability}/${item.maxDurability}`, listX + 54, itemY + 39)
 
           // 耐久度條
           ctx.fillStyle = 'rgba(0,0,0,0.5)'
@@ -421,13 +429,13 @@ export class UISystem {
     const def = ITEM_DEFS[item.id]
     if (!def) return
 
-    this.drawItemIcon(ctx, item.id, x + 16, y + 16, 32)
+    this.drawItemIcon(ctx, item.id, x + 16, y + 16, 48)
 
     ctx.textAlign = 'left'
     ctx.textBaseline = 'alphabetic'
     ctx.fillStyle = '#fff'
     ctx.font = 'bold 19px "Microsoft JhengHei", sans-serif'
-    ctx.fillText(def.name, x + 56, y + 38)
+    ctx.fillText(def.name, x + 72, y + 44)
 
     // 說明
     ctx.fillStyle = '#ccc'
@@ -480,7 +488,7 @@ export class UISystem {
   }
 
   /** 繪製物品圖示 (使用資產系統) */
-  private drawItemIcon(ctx: CanvasRenderingContext2D, itemId: string, x: number, y: number, size: number = 24): void {
+  private drawItemIcon(ctx: CanvasRenderingContext2D, itemId: string, x: number, y: number, size: number = 36): void {
     // 嘗試從資產系統獲取圖示
     if (this.itemIconsMap && assetManager.hasAsset('ui_icons')) {
       const iconDef = this.itemIconsMap.items[itemId]

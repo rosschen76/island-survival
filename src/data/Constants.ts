@@ -8,7 +8,7 @@ export const GAME_VERSION = 1
 export const DEFAULT_CONFIG: GameConfig = {
   mapWidth: 50,
   mapHeight: 38,
-  tileSize: 32,
+  tileSize: 48,
   maxStamina: 100,
   maxHealth: 100,
   staminaCostMove: 1,

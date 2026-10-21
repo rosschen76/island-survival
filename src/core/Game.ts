@@ -561,7 +561,49 @@ export class Game {
   /** 結束戰鬥 */
   endCombat(victory: boolean): void {
     this.combatSystem.endCombat(victory)
+    this.advanceTime(30)
     this.setState(GameState.PLAYING)
+  }
+
+  /** 推進時間 (分鐘) */
+  advanceTime(minutes: number): void {
+    const player = this.playerSystem.player
+    if (player.stats.currentHour === undefined) player.stats.currentHour = 8
+    if (player.stats.currentMinute === undefined) player.stats.currentMinute = 0
+    if (!player.stats.daysSurvived) player.stats.daysSurvived = 1
+
+    const oldHour = player.stats.currentHour
+    const totalMinutes = player.stats.currentMinute + minutes
+    const hoursToAdd = Math.floor(totalMinutes / 60)
+    player.stats.currentMinute = totalMinutes % 60
+
+    if (hoursToAdd > 0) {
+      const newHourRaw = player.stats.currentHour + hoursToAdd
+      player.stats.currentHour = newHourRaw % 24
+      const daysToAdd = Math.floor(newHourRaw / 24)
+      if (daysToAdd > 0) {
+        player.stats.daysSurvived += daysToAdd
+        this.uiSystem.addMessage(`🌅 新的一天開始了 (第 ${player.stats.daysSurvived} 天)！`, 'info')
+      }
+    }
+
+    const newHour = player.stats.currentHour
+    // 06:00 日出廣播
+    if ((oldHour < 6 || oldHour >= 18) && (newHour >= 6 && newHour < 18)) {
+      this.uiSystem.addMessage('🌅 06:00 日出：晨曦破曉，日照海島，野獸退回了巢穴。', 'info')
+      this.audioSystem.playSFX('explore')
+    }
+    // 18:00 日落廣播
+    if ((oldHour >= 6 && oldHour < 18) && (newHour >= 18 || newHour < 6)) {
+      this.uiSystem.addMessage('🌙 18:00 日落：夜幕低垂，夜間猛獸變得格外兇猛危險！', 'warning')
+      this.audioSystem.playSFX('hurt')
+    }
+  }
+
+  /** 是否為夜間 (18:00 ~ 06:00) */
+  isNight(): boolean {
+    const hour = this.playerSystem?.player?.stats?.currentHour ?? 8
+    return hour >= 18 || hour < 6
   }
 
   /** 開啟製作介面 */

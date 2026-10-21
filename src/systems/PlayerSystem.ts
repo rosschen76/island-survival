@@ -31,7 +31,9 @@ export class PlayerSystem {
 
   private createInitialStats(): PlayerStats {
     return {
-      daysSurvived: 0,
+      daysSurvived: 1,
+      currentHour: 8,
+      currentMinute: 0,
       tilesExplored: 0,
       eventsCompleted: 0,
       combatsWon: 0,
@@ -280,7 +282,13 @@ export class PlayerSystem {
       discoveredTiles: new Set(state.discoveredTiles),
       visitedLocations: new Set(state.visitedLocations),
       flags: { ...state.flags },
-      stats: { ...state.stats, endingsUnlocked: [...state.stats.endingsUnlocked] },
+      stats: {
+        ...state.stats,
+        daysSurvived: state.stats.daysSurvived || 1,
+        currentHour: state.stats.currentHour ?? 8,
+        currentMinute: state.stats.currentMinute ?? 0,
+        endingsUnlocked: [...(state.stats.endingsUnlocked || [])]
+      },
       inventory: state.inventory.map(item => ({ ...item }))
     }
     this.loadEndingProgress()

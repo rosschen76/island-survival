@@ -25,10 +25,10 @@ export class Renderer {
   private cameraLerp: number = 0.15
 
   // 格子大小 (螢幕像素)
-  private tileSize: number = 32
-  private baseTileSize: number = 32
-  private minTileSize: number = 16
-  private maxTileSize: number = 64
+  private tileSize: number = 48
+  private baseTileSize: number = 48
+  private minTileSize: number = 28
+  private maxTileSize: number = 96
 
   // 動畫
   private time: number = 0
@@ -78,15 +78,15 @@ export class Renderer {
   }
 
   private updateTileSize(): void {
-    // 根據視窗大小自動調整格子大小
+    // 放大 1.5 倍：依視窗智慧縮放
     const mapWidth = this.game.config.mapWidth
     const mapHeight = this.game.config.mapHeight
 
     const maxTileW = this.viewWidth / mapWidth
     const maxTileH = this.viewHeight / mapHeight
-    const idealSize = Math.min(maxTileW, maxTileH)
+    const idealSize = Math.max(36, Math.floor(Math.min(maxTileW, maxTileH) * 1.5))
 
-    this.tileSize = Math.max(this.minTileSize, Math.min(this.maxTileSize, Math.floor(idealSize)))
+    this.tileSize = Math.max(this.minTileSize, Math.min(this.maxTileSize, idealSize))
     this.baseTileSize = this.tileSize
   }
 
@@ -143,6 +143,9 @@ export class Renderer {
 
     // 渲染迷霧
     this.renderFog()
+
+    // 渲染晝夜光影
+    this.renderDayNightOverlay()
   }
 
   /** 渲染地圖 */
@@ -358,8 +361,8 @@ export class Renderer {
         if (sheet) {
           const frame = sheet.frames.get(resourceDef.frame)
           if (frame) {
-            const scale = 16 / sheet.frameWidth // 資源圖標 16x16
-            const drawSize = 16
+            const scale = 24 / sheet.frameWidth // 資源圖標 24x24 (放大 1.5 倍)
+            const drawSize = 24
             ctx.drawImage(
               sheet.image,
               frame.x, frame.y, frame.width, frame.height,
@@ -369,7 +372,7 @@ export class Renderer {
             // 數量
             if (resource.quantity > 1) {
               ctx.fillStyle = '#fff'
-              ctx.font = '8px monospace'
+              ctx.font = '10px monospace'
               ctx.textAlign = 'center'
               ctx.fillText(resource.quantity.toString(), cx, cy + 10)
             }
@@ -382,7 +385,7 @@ export class Renderer {
     // 回退：繪製簡單圖形
     ctx.fillStyle = '#ffd700'
     ctx.beginPath()
-    ctx.arc(cx, cy, 4, 0, Math.PI * 2)
+    ctx.arc(cx, cy, 6, 0, Math.PI * 2)
     ctx.fill()
 
     if (resource.quantity > 1) {
@@ -401,9 +404,9 @@ export class Renderer {
 
     ctx.fillStyle = '#ff6b6b'
     ctx.beginPath()
-    ctx.moveTo(cx, cy - 6)
-    ctx.lineTo(cx + 5, cy + 2)
-    ctx.lineTo(cx - 5, cy + 2)
+    ctx.moveTo(cx, cy - 9)
+    ctx.lineTo(cx + 8, cy + 3)
+    ctx.lineTo(cx - 8, cy + 3)
     ctx.closePath()
     ctx.fill()
   }
@@ -525,8 +528,8 @@ export class Renderer {
   private renderPlayerBars(x: number, y: number): void {
     const ctx = this.ctx
     const player = this.playerSystem.player
-    const barWidth = 40
-    const barHeight = 4
+    const barWidth = Math.round(this.tileSize * 1.1)
+    const barHeight = 5
     const gap = 2
 
     // 體力條
@@ -579,6 +582,48 @@ export class Renderer {
         }
       }
     }
+  }
+
+  /** 渲染晝夜光影 (24小時制: 06:00日出, 18:00日落) */
+  private renderDayNightOverlay(): void {
+    const player = this.playerSystem.player
+    const hour = player.stats.currentHour ?? 8
+    const minute = player.stats.currentMinute ?? 0
+    const timeVal = hour + minute / 60
+
+    let darkness = 0
+    // 18:00 - 06:00 為夜間
+    if (timeVal >= 18 || timeVal < 6) {
+      if (timeVal >= 18 && timeVal < 20) {
+        // 18:00 - 20:00 黃昏日落漸變 (0 -> 0.55)
+        darkness = 0.55 * ((timeVal - 18) / 2)
+      } else if (timeVal >= 4 && timeVal < 6) {
+        // 04:00 - 06:00 晨曦破曉漸變 (0.55 -> 0)
+        darkness = 0.55 * (1 - (timeVal - 4) / 2)
+      } else {
+        // 20:00 - 04:00 深夜
+        darkness = 0.55
+      }
+    }
+
+    if (darkness <= 0.02) return
+
+    const ctx = this.ctx
+    const tileSize = this.tileSize
+    const screenX = player.position.x * tileSize - this.cameraX + tileSize / 2
+    const screenY = player.position.y * tileSize - this.cameraY + tileSize / 2
+
+    ctx.save()
+    // 夜間氛圍光罩：以玩家為中心保留半徑光圈，周圍籠罩夜色
+    const lightRadius = tileSize * 3.8
+    const grad = ctx.createRadialGradient(screenX, screenY, tileSize * 0.8, screenX, screenY, lightRadius)
+    grad.addColorStop(0, 'rgba(8, 12, 30, 0.02)')
+    grad.addColorStop(0.5, `rgba(8, 12, 30, ${darkness * 0.55})`)
+    grad.addColorStop(1, `rgba(5, 8, 22, ${darkness})`)
+
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, this.viewWidth, this.viewHeight)
+    ctx.restore()
   }
 
   /** 渲染主選單 */

@@ -124,6 +124,7 @@ export class CraftSystem {
 
     // 統計
     this.game['playerSystem'].player.stats.itemsCrafted++
+    this.game.advanceTime(30)
 
     this.game['audioSystem'].playSFX('craft')
 
@@ -348,14 +349,14 @@ export class CraftSystem {
       if (!resultItem) continue
 
       // 圖示區域 (內部會 save/restore 畫布狀態，避免汙染 textAlign / textBaseline)
-      this.drawItemIcon(ctx, resultItem.id, x + 14, itemY + 10, 26)
+      this.drawItemIcon(ctx, resultItem.id, x + 12, itemY + 8, 34)
 
       // 名稱
       ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
       ctx.fillStyle = canCraft ? '#fff' : '#888'
       ctx.font = 'bold 15px "Microsoft JhengHei", sans-serif'
-      ctx.fillText(resultItem.name, x + 48, itemY + 20)
+      ctx.fillText(resultItem.name, x + 54, itemY + 20)
 
       // 材料預覽
       ctx.font = '12px "Microsoft JhengHei", sans-serif'
@@ -418,13 +419,13 @@ export class CraftSystem {
     if (!resultItem) return
 
     // 物品圖示與名稱
-    this.drawItemIcon(ctx, resultItem.id, x + 16, y + 16, 32)
+    this.drawItemIcon(ctx, resultItem.id, x + 16, y + 16, 48)
 
     ctx.textAlign = 'left'
     ctx.textBaseline = 'alphabetic'
     ctx.fillStyle = '#fff'
     ctx.font = 'bold 19px "Microsoft JhengHei", sans-serif'
-    ctx.fillText(`${resultItem.name} x${recipe.resultQuantity}`, x + 56, y + 38)
+    ctx.fillText(`${resultItem.name} x${recipe.resultQuantity}`, x + 72, y + 44)
 
     // 說明
     ctx.fillStyle = '#ccc'
@@ -451,7 +452,7 @@ export class CraftSystem {
       const have = this.game['playerSystem'].getItemCount(ing.itemId)
       const hasEnough = have >= ing.quantity
 
-      this.drawItemIcon(ctx, ing.itemId, x + 20, matY - 16, 18)
+      this.drawItemIcon(ctx, ing.itemId, x + 20, matY - 18, 26)
 
       ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
@@ -477,7 +478,7 @@ export class CraftSystem {
         const toolDef = ITEM_DEFS[toolId]
         const hasTool = this.game['playerSystem'].hasItem(toolId)
 
-        this.drawItemIcon(ctx, toolId, x + 20, matY - 16, 18)
+        this.drawItemIcon(ctx, toolId, x + 20, matY - 18, 26)
 
         ctx.textAlign = 'left'
         ctx.textBaseline = 'alphabetic'
@@ -530,7 +531,7 @@ export class CraftSystem {
   }
 
   /** 繪製物品圖示 (使用資產系統) */
-  private drawItemIcon(ctx: CanvasRenderingContext2D, itemId: string, x: number, y: number, size: number = 24): void {
+  private drawItemIcon(ctx: CanvasRenderingContext2D, itemId: string, x: number, y: number, size: number = 36): void {
     // 嘗試從資產系統獲取圖示
     if (this.itemIconsMap && assetManager.hasAsset('ui_icons')) {
       const iconDef = this.itemIconsMap.items[itemId]
