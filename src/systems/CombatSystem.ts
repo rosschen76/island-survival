@@ -186,14 +186,28 @@ export class CombatSystem {
 
   /** 更新戰鬥邏輯 */
   update(dt: number): void {
-    if (this.combatEnded || !this.enemy) return
+    if (this.combatEnded) {
+      if (this.game.targetSystem?.isActive()) {
+        const won = this.game['playerSystem'].player.health > 0
+        this.game.endCombat(won)
+      }
+      return
+    }
 
-    // 若輪到敵人，或開啟自動戰鬥，計時後執行回合
-    if (!this.isPlayerTurn || this.autoCombat) {
+    if (!this.enemy) return
+
+    // 若輪到敵人，或開啟自動戰鬥，或目標模式運行中，計時後執行回合
+    const isAuto = this.autoCombat || this.game.targetSystem?.isActive()
+    if (!this.isPlayerTurn || isAuto) {
       this.turnTimer += dt
-      if (this.turnTimer >= this.TURN_INTERVAL) {
+      const interval = this.game.targetSystem?.isActive() ? 260 : this.TURN_INTERVAL
+      if (this.turnTimer >= interval) {
         this.turnTimer = 0
         this.processAutoTurn()
+        if (this.combatEnded && this.game.targetSystem?.isActive()) {
+          const won = this.game['playerSystem'].player.health > 0
+          this.game.endCombat(won)
+        }
       }
     }
   }
@@ -270,6 +284,9 @@ export class CombatSystem {
       if (died) {
         this.addLog(this.enemy.flavorText.victory, 'defeat')
         this.combatEnded = true
+        if (this.game.targetSystem?.isActive()) {
+          this.game.endCombat(false)
+        }
         return
       }
     } else {
@@ -289,6 +306,10 @@ export class CombatSystem {
       this.addLog(this.enemy.flavorText.defeat, 'victory')
       this.processVictory()
       this.combatEnded = true
+      if (this.game.targetSystem?.isActive()) {
+        const won = this.game['playerSystem'].player.health > 0
+        this.game.endCombat(won)
+      }
     }
   }
 
@@ -422,6 +443,11 @@ export class CombatSystem {
   /** 是否在戰鬥中 */
   isInCombat(): boolean {
     return this.enemy !== null && !this.combatEnded
+  }
+
+  /** 戰鬥是否已結束 */
+  isCombatEnded(): boolean {
+    return this.combatEnded
   }
 
   /** 手動觸發玩家行動 (非自動戰鬥時) */

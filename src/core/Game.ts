@@ -238,12 +238,12 @@ export class Game {
   private update(dt: number): void {
     const pressedKeys = this.input.getNewlyPressedKeys()
     this.achievementSystem.update(dt)
+    this.targetSystem.update(dt)
 
     // 根據狀態更新
     switch (this.state) {
       case GameState.PLAYING:
         this.handlePlayingInput(pressedKeys)
-        this.targetSystem.update(dt)
         this.playerSystem.update(dt)
         this.mapSystem.update(dt)
         break
