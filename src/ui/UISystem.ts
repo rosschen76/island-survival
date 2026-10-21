@@ -152,7 +152,8 @@ export class UISystem {
     const hints = [
       { key: 'WASD/↑↓←→', desc: '移動' },
       { key: 'E/Space', desc: '採集/探索' },
-      { key: 'R', desc: '休息(基地)' },
+      { key: 'R', desc: '休息(營地)' },
+      { key: 'B', desc: '🏕️ 建造營地' },
       { key: 'I', desc: '背包' },
       { key: 'C', desc: '製作' },
       { key: 'M', desc: '存檔/讀檔' },

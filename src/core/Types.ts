@@ -148,6 +148,8 @@ export interface MapTile {
   visible: boolean
   eventId?: string
   resources?: ResourceNode[]
+  /** 玩家自建營地 (可休息過夜) */
+  hasCamp?: boolean
 }
 
 /** 資源節點 */

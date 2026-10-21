@@ -217,6 +217,7 @@ export class Renderer {
 
     // 基礎地形
     this.drawTileBase(ctx, px, py, tile.type, tile.explored)
+    if (tile.hasCamp) this.drawCampIcon(ctx, px, py)
 
     // 資源節點
     if (tile.resources && tile.resources.length > 0 && tile.explored) {
@@ -236,6 +237,7 @@ export class Renderer {
   /** 繪製單一格子 (直接繪製用) */
   private drawTileAt(ctx: CanvasRenderingContext2D, x: number, y: number, tile: any): void {
     this.drawTileBase(ctx, x, y, tile.type, tile.explored)
+    if (tile.hasCamp) this.drawCampIcon(ctx, x, y)
 
     if (tile.resources && tile.resources.length > 0 && tile.explored) {
       for (const resource of tile.resources) {
@@ -248,6 +250,22 @@ export class Renderer {
     if (tile.eventId && tile.explored) {
       this.drawEventMarker(ctx, x, y)
     }
+  }
+
+  /** 繪製自建營地圖示 */
+  private drawCampIcon(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, x: number, y: number): void {
+    const s = this.tileSize
+    ctx.save()
+    ctx.fillStyle = 'rgba(139, 107, 42, 0.6)'
+    ctx.fillRect(x + 2, y + 2, s - 4, s - 4)
+    ctx.strokeStyle = '#fdcb6e'
+    ctx.lineWidth = 1.5
+    ctx.strokeRect(x + 2.5, y + 2.5, s - 5, s - 5)
+    ctx.font = `${Math.floor(s * 0.55)}px "Microsoft JhengHei", sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('🏕️', x + s / 2, y + s / 2)
+    ctx.restore()
   }
 
   /** 繪製地形基礎 */

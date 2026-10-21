@@ -426,10 +426,10 @@ export class MapSystem {
     // 重新計算視野 (視野半徑 3)
     this.revealArea(player.position.x, player.position.y, 3)
 
-    // 基地永遠可見
+    // 基地與自建營地永遠可見
     for (let y = 0; y < mapHeight; y++) {
       for (let x = 0; x < mapWidth; x++) {
-        if (this.map[y][x].type === TileType.BASE) {
+        if (this.isRestTile(this.map[y][x])) {
           this.map[y][x].visible = true
           this.map[y][x].explored = true
         }
@@ -483,7 +483,7 @@ export class MapSystem {
       targetTile.eventId = undefined // 事件只觸發一次 (除非可重複)
       this.game.triggerEvent(eventId)
 
-    } else if (targetTile.type !== TileType.BASE) {
+    } else if (!this.isRestTile(targetTile)) {
       const isNight = this.game.isNight()
       const ambushChance = isNight ? 0.18 : 0.03
       const canEncounter = isNight || [TileType.FOREST, TileType.JUNGLE, TileType.CAVE].includes(targetTile.type)
@@ -578,8 +578,8 @@ export class MapSystem {
     const player = this.game['playerSystem'].player
     const tile = this.map[player.position.y][player.position.x]
 
-    if (tile.type !== TileType.BASE) {
-      this.game['uiSystem'].addMessage('只能在基地 (棕色營地) 按 R 休息！', 'warning')
+    if (!this.isRestTile(tile)) {
+      this.game['uiSystem'].addMessage('只能在營地 (⛺主基地 / 🏕️自建營地) 按 R 休息！可按 B 就地建造新營地。', 'warning')
       this.game['audioSystem'].playSFX('error')
       return false
     }
@@ -607,7 +607,112 @@ export class MapSystem {
     }
 
     this.game['audioSystem'].playSFX('heal')
-    this.game['uiSystem'].addMessage(`在營地休息了一晚 (第 ${player.stats.daysSurvived} 天)，恢復了體力與健康！`, 'success')
+    const campName = tile.type === TileType.BASE ? '主基地' : '自建營地'
+    this.game['uiSystem'].addMessage(`在${campName}休息了一晚 (第 ${player.stats.daysSurvived} 天)，恢復了體力與健康！`, 'success')
+    this.game['renderer'].markMapDirty()
+    return true
+  }
+
+  /** 建造營地所需材料 */
+  static readonly CAMP_COST: { itemId: string; name: string; quantity: number }[] = [
+    { itemId: 'wood', name: '木材', quantity: 5 },
+    { itemId: 'fiber', name: '植物纖維', quantity: 3 }
+  ]
+  /** 建造營地消耗體力 */
+  static readonly CAMP_STAMINA_COST = 5
+  /** 營地之間的最小間距 (曼哈頓距離) */
+  static readonly CAMP_MIN_DISTANCE = 5
+  /** 自建營地數量上限 */
+  static readonly MAX_CAMPS = 12
+
+  /** 是否為可休息的格子 (主基地或自建營地) */
+  isRestTile(tile: MapTile | null | undefined): boolean {
+    return !!tile && (tile.type === TileType.BASE || tile.hasCamp === true)
+  }
+
+  /** 取得所有可休息點座標 */
+  getRestPoints(): { x: number; y: number }[] {
+    const points: { x: number; y: number }[] = []
+    for (let y = 0; y < this.map.length; y++) {
+      for (let x = 0; x < this.map[y].length; x++) {
+        if (this.isRestTile(this.map[y][x])) points.push({ x, y })
+      }
+    }
+    return points
+  }
+
+  /** 已建造的自建營地數量 */
+  getCampCount(): number {
+    let count = 0
+    for (const row of this.map) for (const t of row) if (t.hasCamp) count++
+    return count
+  }
+
+  /** 背包材料是否足夠建造營地 */
+  hasCampMaterials(): boolean {
+    const ps = this.game['playerSystem']
+    return MapSystem.CAMP_COST.every(c => ps.getItemCount(c.itemId) >= c.quantity)
+  }
+
+  /** 檢查目前位置能否建造營地 */
+  canBuildCampHere(): { ok: boolean; code?: 'ALREADY' | 'TERRAIN' | 'MAX' | 'NEAR_CAMP' | 'MATERIALS' | 'STAMINA'; reason?: string } {
+    const player = this.game['playerSystem'].player
+    const { x, y } = player.position
+    const tile = this.getTile(x, y)
+    if (!tile) return { ok: false, code: 'TERRAIN', reason: '無效的位置' }
+
+    if (this.isRestTile(tile)) {
+      return { ok: false, code: 'ALREADY', reason: '這裡已經是營地了，可直接按 R 休息！' }
+    }
+    if ([TileType.CAVE, TileType.RUINS, TileType.WATER, TileType.EMPTY].includes(tile.type)) {
+      return { ok: false, code: 'TERRAIN', reason: '此地形無法紮營 (洞穴、廢墟與水域不可建造)' }
+    }
+    if (this.getCampCount() >= MapSystem.MAX_CAMPS) {
+      return { ok: false, code: 'MAX', reason: `自建營地已達上限 (${MapSystem.MAX_CAMPS} 座)` }
+    }
+    for (const p of this.getRestPoints()) {
+      const d = Math.abs(p.x - x) + Math.abs(p.y - y)
+      if (d < MapSystem.CAMP_MIN_DISTANCE) {
+        return { ok: false, code: 'NEAR_CAMP', reason: `附近 ${d} 格內已有營地，請再走遠一點 (營地間至少相隔 ${MapSystem.CAMP_MIN_DISTANCE} 格)` }
+      }
+    }
+    if (!this.hasCampMaterials()) {
+      const ps = this.game['playerSystem']
+      const need = MapSystem.CAMP_COST.map(c => `${c.name} ${ps.getItemCount(c.itemId)}/${c.quantity}`).join('、')
+      return { ok: false, code: 'MATERIALS', reason: `建造營地材料不足：${need}` }
+    }
+    if (player.stamina < MapSystem.CAMP_STAMINA_COST) {
+      return { ok: false, code: 'STAMINA', reason: `體力不足，建造營地需要 ${MapSystem.CAMP_STAMINA_COST} 點體力` }
+    }
+    return { ok: true }
+  }
+
+  /** 在目前位置建造新營地 */
+  buildCamp(silent: boolean = false): boolean {
+    const check = this.canBuildCampHere()
+    if (!check.ok) {
+      if (!silent) {
+        this.game['uiSystem'].addMessage(`🏕️ ${check.reason}`, 'warning', 3500)
+        this.game['audioSystem'].playSFX('error')
+      }
+      return false
+    }
+
+    const player = this.game['playerSystem'].player
+    const { x, y } = player.position
+    const tile = this.map[y][x]
+
+    for (const c of MapSystem.CAMP_COST) {
+      this.game['playerSystem'].removeItem(c.itemId, c.quantity)
+    }
+    player.stamina -= MapSystem.CAMP_STAMINA_COST
+    tile.hasCamp = true
+    tile.explored = true
+    tile.visible = true
+    this.game.advanceTime(60)
+
+    this.game['audioSystem'].playSFX('craft')
+    this.game['uiSystem'].addMessage(`🏕️ 成功在 (${x}, ${y}) 建造新營地！可在此按 R 休息過夜 (已建 ${this.getCampCount()}/${MapSystem.MAX_CAMPS} 座)`, 'success', 4000)
     this.game['renderer'].markMapDirty()
     return true
   }

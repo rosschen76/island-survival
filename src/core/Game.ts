@@ -349,6 +349,9 @@ export class Game {
         case 'KeyR':
           this.mapSystem.restAtBase()
           return
+        case 'KeyB':
+          this.mapSystem.buildCamp()
+          return
         case 'KeyI':
           this.openInventory()
           return

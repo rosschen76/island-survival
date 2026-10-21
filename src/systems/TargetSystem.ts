@@ -7,6 +7,9 @@
 import { Game } from '../core/Game.js'
 import { TargetGoalDef, TileType, ItemType, GameState } from '../core/Types.js'
 import { ITEM_DEFS } from '../data/Items.js'
+import { MapSystem } from './MapSystem.js'
+
+const DIRS: [number, number][] = [[0, -1], [0, 1], [-1, 0], [1, 0]]
 
 export class TargetSystem {
   private game: Game
@@ -15,6 +18,13 @@ export class TargetSystem {
   private stepTimer: number = 0
   private currentPath: { x: number; y: number }[] = []
   private statusMessage: string = ''
+  /** 距離營地超過此步數時，視為「遠離營地」，傍晚改為就地紮營 */
+  private static readonly FAR_CAMP_DISTANCE = 10
+  /** 以玩家為起點的 BFS 距離場 / 父節點 (每步重算) */
+  private distField: Int32Array | null = null
+  private parentField: Int32Array | null = null
+  /** 最近一次計算的「到最近營地步數」 */
+  private lastStepsToCamp: number = 0
 
   public readonly goals: TargetGoalDef[] = [
     {
@@ -212,6 +222,9 @@ export class TargetSystem {
     const map = mapSystem.getMap()
     if (!map || map.length === 0) return
 
+    // 每步重新計算整張地圖的 BFS 距離場 (50x38 約 1900 格，運算量極小)
+    this.computeDistanceField()
+
     // === 步驟 1：檢查目標是否已經達成 ===
     if (this.isGoalCompleted(goal)) {
       this.game.audioSystem.playSFX('victory')
@@ -220,22 +233,8 @@ export class TargetSystem {
       return
     }
 
-    // === 步驟 2：時間與安全考量 — 17:00 傍晚或體力不足 18 時，自動回帳篷就寢 ===
-    const hour = player.stats.currentHour ?? 8
-    const basePos = this.findBasePosition()
-
-    if (basePos && (hour >= 17 || hour < 6 || player.stamina <= 18)) {
-      if (player.position.x === basePos.x && player.position.y === basePos.y) {
-        this.statusMessage = '🌙 夜幕降臨，在帳篷安穩休息至 06:00 日出...'
-        mapSystem.restAtBase()
-        this.currentPath = []
-        return
-      } else {
-        this.statusMessage = hour >= 17 ? '🌆 接近 18:00 日落，正在全速趕回營地躲避野獸...' : '⚡ 體力不足，正在返回基地休息...'
-        this.moveTowards(basePos.x, basePos.y)
-        return
-      }
-    }
+    // === 步驟 2：日落 / 體力管理 — 依距離提早回最近營地，或視情況就地建造新營地 ===
+    if (this.handleRestAndCamp()) return
 
     // === 步驟 3：緊急自癒 — 若血量偏低且有藥品，自動使用 ===
     if (player.health <= 60) {
@@ -394,6 +393,13 @@ export class TargetSystem {
       if (fiberCount < 2) return 'fiber'
     }
 
+    // 1.5 遠離營地時，預先備妥紮營材料 (木材x5、植物纖維x3)
+    if (this.lastStepsToCamp > TargetSystem.FAR_CAMP_DISTANCE - 3) {
+      for (const c of MapSystem.CAMP_COST) {
+        if (this.getItemCount(c.itemId) < c.quantity) return c.itemId
+      }
+    }
+
     // 2. 優先補齊藥材材料 (若藥材少於 3 份，優先收集植物纖維或藥草)
     const medicineCount = player.inventory
       .filter(i => i.id === 'herbal_medicine' || i.id === 'bandage' || i.type === ItemType.MEDICINE)
@@ -435,97 +441,188 @@ export class TargetSystem {
     return false
   }
 
-  /** 朝目標坐標前進一格 (含 BFS 尋路演算法) */
-  private moveTowards(targetX: number, targetY: number): boolean {
+  /** 日落 / 體力管理：回最近營地或就地紮營。回傳 true 代表本步已執行動作 */
+  private handleRestAndCamp(): boolean {
     const player = this.game.playerSystem.player
     const mapSystem = this.game.mapSystem
+    const hour = player.stats.currentHour ?? 8
+    const minute = player.stats.currentMinute ?? 0
+    const isNight = hour >= 18 || hour < 6
+    const minutesToDusk = isNight ? 0 : 18 * 60 - (hour * 60 + minute)
+    const onRestTile = mapSystem.isRestTile(mapSystem.getTile(player.position.x, player.position.y))
 
-    if (player.position.x === targetX && player.position.y === targetY) {
+    const nearest = this.findNearestRestPoint()
+    const stepsToCamp = nearest ? nearest.dist : Infinity
+    this.lastStepsToCamp = stepsToCamp
+
+    const tired = player.stamina <= 18
+    const duskSoon = hour >= 17 || isNight
+    const farFromCamp = stepsToCamp > TargetSystem.FAR_CAMP_DISTANCE
+    const campCheck = mapSystem.canBuildCampHere()
+
+    // 計畫 A：遠離營地且帶著紮營材料 → 白天照常工作，傍晚 / 體力不足時就地紮營
+    if (farFromCamp && mapSystem.hasCampMaterials() && !onRestTile) {
+      if (!duskSoon && !tired) return false
+      if (campCheck.ok) {
+        this.buildCampHere(stepsToCamp)
+        return true
+      }
+      // 當前地形不適合 (洞穴 / 廢墟 / 太靠近其他營地) → 往旁邊找空地
+      if ((campCheck.code === 'TERRAIN' || campCheck.code === 'NEAR_CAMP') && this.stepToCampableNeighbor()) {
+        this.statusMessage = '🔍 此處不宜紮營，正在尋找附近適合紮營的空地...'
+        return true
+      }
+      // 其餘情況改走計畫 B
+    }
+
+    // 計畫 B：依距離估算回程時間 (每步 15 分鐘)，提早出發回最近營地
+    const needReturn = isNight || tired || duskSoon ||
+      (stepsToCamp !== Infinity && (stepsToCamp * 15 + 45 >= minutesToDusk || player.stamina <= stepsToCamp + 8))
+    if (!needReturn) return false
+
+    if (onRestTile) {
+      this.statusMessage = '🌙 在營地安穩休息至 06:00 日出...'
+      mapSystem.restAtBase()
       return true
     }
 
-    const path = this.findPath(player.position.x, player.position.y, targetX, targetY)
-    if (!path || path.length < 2) {
-      const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }]
-      const d = dirs[Math.floor(Math.random() * dirs.length)]
-      return mapSystem.tryMovePlayer(d.dx, d.dy)
+    // 判斷是否趕得回去：天黑、時間不足、體力不足或無路可達
+    const canMakeIt = stepsToCamp !== Infinity && !isNight &&
+      stepsToCamp * 15 <= minutesToDusk && player.stamina >= stepsToCamp + 2
+    if (!canMakeIt && campCheck.ok) {
+      this.buildCampHere(stepsToCamp)
+      return true
     }
 
-    const nextStep = path[1]
-    const dx = nextStep.x - player.position.x
-    const dy = nextStep.y - player.position.y
-    return mapSystem.tryMovePlayer(dx, dy)
+    if (nearest) {
+      this.statusMessage = canMakeIt
+        ? `🌆 距離最近營地 ${stepsToCamp} 格，提早出發趕回營地...`
+        : `⚠️ 趕不及回營且無法紮營 (${campCheck.reason || '條件不足'})，冒險趕路中...`
+      this.moveTowards(nearest.x, nearest.y)
+      return true
+    }
+    return false
   }
 
-  /** 廣度優先搜尋 (BFS) 最短可通行路徑 */
-  private findPath(startX: number, startY: number, endX: number, endY: number): { x: number; y: number }[] | null {
-    const map = this.game.mapSystem.getMap()
-    const { mapWidth, mapHeight } = this.game.config
-
-    const queue: { x: number; y: number }[] = [{ x: startX, y: startY }]
-    const visited = new Set<string>()
-    const parentMap = new Map<string, { x: number; y: number }>()
-
-    visited.add(`${startX},${startY}`)
-
-    const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }]
-
-    let found = false
-    let maxSteps = 400
-
-    while (queue.length > 0 && maxSteps-- > 0) {
-      const current = queue.shift()!
-      if (current.x === endX && current.y === endY) {
-        found = true
-        break
-      }
-
-      for (const d of dirs) {
-        const nx = current.x + d.dx
-        const ny = current.y + d.dy
-
-        if (nx < 0 || nx >= mapWidth || ny < 0 || ny >= mapHeight) continue
-        const key = `${nx},${ny}`
-        if (visited.has(key)) continue
-
-        const tile = map[ny][nx]
-        if (tile.type === TileType.WATER || tile.type === TileType.EMPTY) continue
-
-        visited.add(key)
-        parentMap.set(key, current)
-        queue.push({ x: nx, y: ny })
-      }
+  /** 就地建造營地 (下一步即會在營地上休息) */
+  private buildCampHere(stepsToCamp: number): void {
+    if (this.game.mapSystem.buildCamp(true)) {
+      const distText = stepsToCamp === Infinity ? '無法到達' : `${stepsToCamp} 格`
+      this.statusMessage = '🏕️ 距離營地太遠，已就地搭建新營地準備過夜...'
+      this.game.uiSystem.addMessage(`🏕️【目標模式】最近營地距離 ${distText}，就地搭建新營地過夜！`, 'success', 3500)
     }
-
-    if (!found) return null
-
-    const path: { x: number; y: number }[] = []
-    let curr: { x: number; y: number } | undefined = { x: endX, y: endY }
-    while (curr) {
-      path.unshift(curr)
-      if (curr.x === startX && curr.y === startY) break
-      curr = parentMap.get(`${curr.x},${curr.y}`)
-    }
-
-    return path
   }
 
-  /** 尋找基地 (帳篷營地) 位置 */
-  private findBasePosition(): { x: number; y: number } | null {
-    const map = this.game.mapSystem.getMap()
-    for (let y = 0; y < map.length; y++) {
-      for (let x = 0; x < map[y].length; x++) {
-        if (map[y][x].type === TileType.BASE) {
-          return { x, y }
-        }
-      }
-    }
-    return null
-  }
-
-  /** 尋找最近已知含有目標物品或匹配地形的地塊 */
-  private findNearestTileWithItemOrTerrain(itemId: string): { x: number; y: number } | null {
+  /** 移動到相鄰的可紮營格子 */
+  private stepToCampableNeighbor(): boolean {
     const player = this.game.playerSystem.player
+    const mapSystem = this.game.mapSystem
+    const blocked = [TileType.CAVE, TileType.RUINS, TileType.WATER, TileType.EMPTY]
+    const order = [...DIRS].sort(() => Math.random() - 0.5)
+    for (const [dx, dy] of order) {
+      const t = mapSystem.getTile(player.position.x + dx, player.position.y + dy)
+      if (t && !blocked.includes(t.type) && !mapSystem.isRestTile(t)) {
+        if (mapSystem.tryMovePlayer(dx, dy)) return true
+      }
+    }
+    return false
+  }
+
+  /** 找出 BFS 路徑距離最近的營地 (主基地或自建營地) */
+  private findNearestRestPoint(): { x: number; y: number; dist: number } | null {
+    let best: { x: number; y: number; dist: number } | null = null
+    for (const p of this.game.mapSystem.getRestPoints()) {
+      const d = this.getDist(p.x, p.y)
+      if (d < 0) continue
+      if (!best || d < best.dist) best = { x: p.x, y: p.y, dist: d }
+    }
+    return best
+  }
+
+  /** 是否可通行 (與 MapSystem 一致：水域與未知區域不可走) */
+  private isWalkable(type: TileType): boolean {
+    return type !== TileType.WATER && type !== TileType.EMPTY
+  }
+
+  /** 以玩家為起點，對整張地圖做 BFS，取得每格的步數距離與父節點 */
+  private computeDistanceField(): void {
+    const map = this.game.mapSystem.getMap()
+    const { mapWidth: W, mapHeight: H } = this.game.config
+    const player = this.game.playerSystem.player
+    const total = W * H
+    const dist = new Int32Array(total).fill(-1)
+    const parent = new Int32Array(total).fill(-1)
+    const queue = new Int32Array(total)
+    let head = 0
+    let tail = 0
+
+    const start = player.position.y * W + player.position.x
+    dist[start] = 0
+    queue[tail++] = start
+
+    while (head < tail) {
+      const cur = queue[head++]
+      const cx = cur % W
+      const cy = (cur - cx) / W
+      for (const [dx, dy] of DIRS) {
+        const nx = cx + dx
+        const ny = cy + dy
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue
+        const ni = ny * W + nx
+        if (dist[ni] !== -1) continue
+        if (!this.isWalkable(map[ny][nx].type)) continue
+        dist[ni] = dist[cur] + 1
+        parent[ni] = cur
+        queue[tail++] = ni
+      }
+    }
+
+    this.distField = dist
+    this.parentField = parent
+  }
+
+  /** 取得到指定格子的步數 (-1 代表無法到達) */
+  private getDist(x: number, y: number): number {
+    if (!this.distField) return -1
+    const { mapWidth: W, mapHeight: H } = this.game.config
+    if (x < 0 || x >= W || y < 0 || y >= H) return -1
+    return this.distField[y * W + x]
+  }
+
+  /** 沿 BFS 最短路徑朝目標前進一格 (無路可達時隨機漫步) */
+  private moveTowards(targetX: number, targetY: number): boolean {
+    const player = this.game.playerSystem.player
+    const mapSystem = this.game.mapSystem
+    const { mapWidth: W } = this.game.config
+
+    if (player.position.x === targetX && player.position.y === targetY) return true
+
+    const start = player.position.y * W + player.position.x
+    let cur = targetY * W + targetX
+    const parent = this.parentField
+
+    if (!parent || this.getDist(targetX, targetY) < 0) {
+      const [dx, dy] = DIRS[Math.floor(Math.random() * DIRS.length)]
+      return mapSystem.tryMovePlayer(dx, dy)
+    }
+
+    // 回溯到「起點的下一格」
+    let guard = 0
+    while (parent[cur] !== start && parent[cur] !== -1 && guard++ < parent.length) {
+      cur = parent[cur]
+    }
+    if (parent[cur] !== start) {
+      const [dx, dy] = DIRS[Math.floor(Math.random() * DIRS.length)]
+      return mapSystem.tryMovePlayer(dx, dy)
+    }
+
+    const nx = cur % W
+    const ny = (cur - nx) / W
+    return mapSystem.tryMovePlayer(nx - player.position.x, ny - player.position.y)
+  }
+
+  /** 尋找 BFS 路徑最近、已探索且含有目標物品或匹配地形的地塊 */
+  private findNearestTileWithItemOrTerrain(itemId: string): { x: number; y: number } | null {
     const map = this.game.mapSystem.getMap()
     let nearest: { x: number; y: number } | null = null
     let minDist = Infinity
@@ -537,22 +634,20 @@ export class TargetSystem {
 
         const hasResource = tile.resources && tile.resources.some(r => r.itemId === itemId && r.quantity > 0)
         const isTerrain = this.isMatchingTerrain(tile.type, itemId)
+        if (!hasResource && !isTerrain) continue
 
-        if (hasResource || isTerrain) {
-          const dist = Math.abs(x - player.position.x) + Math.abs(y - player.position.y)
-          if (dist < minDist && dist > 0) {
-            minDist = dist
-            nearest = { x, y }
-          }
+        const dist = this.getDist(x, y)
+        if (dist > 0 && dist < minDist) {
+          minDist = dist
+          nearest = { x, y }
         }
       }
     }
     return nearest
   }
 
-  /** 尋找最近未探索地塊 */
+  /** 尋找 BFS 路徑最近、可到達的未探索地塊 */
   private findNearestUnexploredTile(): { x: number; y: number } | null {
-    const player = this.game.playerSystem.player
     const map = this.game.mapSystem.getMap()
     let nearest: { x: number; y: number } | null = null
     let minDist = Infinity
@@ -560,12 +655,11 @@ export class TargetSystem {
     for (let y = 0; y < map.length; y++) {
       for (let x = 0; x < map[y].length; x++) {
         const tile = map[y][x]
-        if (!tile.explored && tile.type !== TileType.WATER) {
-          const dist = Math.abs(x - player.position.x) + Math.abs(y - player.position.y)
-          if (dist < minDist) {
-            minDist = dist
-            nearest = { x, y }
-          }
+        if (tile.explored || !this.isWalkable(tile.type)) continue
+        const dist = this.getDist(x, y)
+        if (dist > 0 && dist < minDist) {
+          minDist = dist
+          nearest = { x, y }
         }
       }
     }
