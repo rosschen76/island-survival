@@ -51,6 +51,8 @@ export class AchievementSystem {
       { id: 'craft_25', title: '巧奪天工', description: '累計製作物品達到 25 次', icon: '⚒️', category: 'craft_combat', maxProgress: 25 },
       { id: 'kill_boar', title: '獵豬勇者', description: '在戰鬥中成功擊敗兇猛野豬', icon: '🐗', category: 'craft_combat', maxProgress: 1 },
       { id: 'kill_snake', title: '斬蛇英雄', description: '在戰鬥中成功擊敗劇毒巨蟒', icon: '🐍', category: 'craft_combat', maxProgress: 1 },
+      { id: 'kill_bat', title: '滅蝠行家', description: '在戰鬥中擊退狂暴洞穴蝙蝠群', icon: '🦇', category: 'craft_combat', maxProgress: 1 },
+      { id: 'kill_guardian', title: '巨像破壞者', description: '在戰鬥中瓦解古代廢墟守衛人偶', icon: '🗿', category: 'craft_combat', maxProgress: 1 },
       { id: 'combat_10', title: '百戰百勝', description: '累計戰鬥勝利次數達到 10 次', icon: '⚔️', category: 'craft_combat', maxProgress: 10 },
 
       // === 結局與傳奇類 (3項) ===
@@ -165,6 +167,12 @@ export class AchievementSystem {
         break
       case 'kill_snake':
         val = player.flags['combat_jungle_snake_won'] ? 1 : 0
+        break
+      case 'kill_bat':
+        val = player.flags['combat_cave_bat_swarm_won'] ? 1 : 0
+        break
+      case 'kill_guardian':
+        val = player.flags['combat_ruins_guardian_won'] ? 1 : 0
         break
       case 'combat_10':
         val = stats.combatsWon || 0

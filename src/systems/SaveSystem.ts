@@ -62,6 +62,11 @@ export class SaveSystem {
         console.warn(`存檔版本不符: ${data.version} != ${GAME_VERSION}，嘗試相容載入`)
       }
 
+      if (data.player?.stats) {
+        if (!data.player.stats.beastKills) data.player.stats.beastKills = {}
+        if (!data.player.stats.beastOneHitKills) data.player.stats.beastOneHitKills = {}
+      }
+
       return data
     } catch (e) {
       console.error('讀檔失敗:', e)

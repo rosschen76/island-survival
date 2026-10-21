@@ -599,8 +599,11 @@ export class Game {
     this.setState(GameState.PLAYING)
   }
 
-  /** 開始戰鬥 */
+  /** 開始戰鬥 (若已累積 50 次一擊必殺，直接秒殺勝利並取得戰利品) */
   startCombat(enemyId: string): void {
+    if (this.combatSystem.tryInstantVictory(enemyId)) {
+      return
+    }
     this.combatSystem.startCombat(enemyId)
     this.setState(GameState.COMBAT)
   }

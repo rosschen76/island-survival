@@ -44,7 +44,9 @@ export class PlayerSystem {
       foodEaten: 0,
       waterDrank: 0,
       endingsUnlocked: [],
-      achievementsUnlocked: []
+      achievementsUnlocked: [],
+      beastKills: {},
+      beastOneHitKills: {}
     }
   }
 

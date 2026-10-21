@@ -130,6 +130,10 @@ export interface PlayerStats {
   waterDrank: number
   endingsUnlocked: EndingType[]
   achievementsUnlocked: string[]
+  /** 各類野獸累計擊敗次數 */
+  beastKills?: Record<string, number>
+  /** 各類野獸累計一擊必殺次數 (滿50次後野外遭遇直接秒殺勝利) */
+  beastOneHitKills?: Record<string, number>
 }
 
 /** 背包物品 */

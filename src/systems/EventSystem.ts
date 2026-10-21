@@ -259,7 +259,7 @@ export class EventSystem {
       '暴風雨來襲',
       '天空迅速陰暗，風浪驟大。暴風雨即將登陸，你必須找個安全地方躲避。',
       [
-        { id: 'shelter_base', text: '趕回基地躲避', effects: [
+        { id: 'shelter_base', text: '趕回最近營地躲避', effects: [
           { type: 'position', key: 'base', value: true },
           { type: 'stamina', value: -15, message: '狂風中艱難趕路' }
         ]},
@@ -572,9 +572,9 @@ export class EventSystem {
           if (effect.message) this.showMessage(effect.message)
           break
         case 'position':
-          // 瞬間移動到特定位置 (如基地)
-          if (effect.key === 'base') {
-            this.moveToBase()
+          // 瞬間移動到特定位置 (優先返回最近營地/基地)
+          if (effect.key === 'base' || effect.key === 'nearest_camp') {
+            this.moveToNearestCamp()
           }
           break
         case 'discover':
@@ -602,18 +602,30 @@ export class EventSystem {
     return stateChanged
   }
 
-  /** 移動到基地 */
-  private moveToBase(): void {
-    const map = this.game['mapSystem'].getMap()
-    for (let y = 0; y < map.length; y++) {
-      for (let x = 0; x < map[y].length; x++) {
-        if (map[y][x].type === 99) { // TileType.BASE
-          this.game['playerSystem'].setPosition({ x, y })
-          this.game['mapSystem'].updateVision()
-          return
-        }
+  /** 移動到最近的營地/基地 */
+  private moveToNearestCamp(): void {
+    const mapSystem = this.game['mapSystem']
+    const player = this.game['playerSystem'].player
+    const restPoints = mapSystem.getRestPoints()
+    if (restPoints.length === 0) return
+
+    let bestPoint = restPoints[0]
+    let bestDist = Infinity
+    for (const p of restPoints) {
+      const d = Math.abs(p.x - player.position.x) + Math.abs(p.y - player.position.y)
+      if (d < bestDist) {
+        bestDist = d
+        bestPoint = p
       }
     }
+
+    this.game['playerSystem'].setPosition(bestPoint)
+    mapSystem.updateVision()
+
+    const tile = mapSystem.getTile(bestPoint.x, bestPoint.y)
+    const isBase = tile?.type === 99 // TileType.BASE
+    const campName = isBase ? '初始基地' : '野外營地'
+    this.showMessage(`風雨交加中，你緊急撤回了最近的避難所（${campName} [${bestPoint.x}, ${bestPoint.y}]）！`)
   }
 
   /** 顯示訊息 (透過 UI 系統) */

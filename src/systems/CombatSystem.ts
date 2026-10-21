@@ -31,6 +31,14 @@ export interface CombatLogEntry {
   timestamp: number
 }
 
+/** 野獸類型與對應擊殺成就對照表 */
+export const ENEMY_ACHIEVEMENTS: Record<string, string> = {
+  wild_boar: 'kill_boar',
+  jungle_snake: 'kill_snake',
+  cave_bat_swarm: 'kill_bat',
+  ruins_guardian: 'kill_guardian'
+}
+
 export class CombatSystem {
   private game: Game
   private enemy: Enemy | null = null
@@ -43,6 +51,7 @@ export class CombatSystem {
   private turnTimer: number = 0
   private readonly TURN_INTERVAL = 650 // 自動戰鬥或敵人回延遲 (ms)
   private isDefending: boolean = false
+  private isCurrentBattleOneHit: boolean = false
 
   // 敵人資料庫
   private enemies: Record<string, Enemy> = {}
@@ -171,6 +180,7 @@ export class CombatSystem {
     this.combatEnded = false
     this.turnTimer = 0
     this.isDefending = false
+    this.isCurrentBattleOneHit = false
 
     this.addLog(this.enemy.flavorText.intro, 'info')
     this.game['audioSystem'].playSFX('combat_start')
@@ -233,10 +243,25 @@ export class CombatSystem {
     this.turn++
     const player = this.game['playerSystem'].player
 
-    // 計算玩家攻擊
+    // 檢查是否已解鎖該野獸對應成就：若解鎖則 100% 一擊必殺！
+    const hasAchievement = this.hasBeastAchievement(this.enemy.id)
+    if (hasAchievement) {
+      this.isCurrentBattleOneHit = true
+      this.enemy.health = 0
+      this.addLog(`⚡【成就極意・一擊必殺】已解鎖獵獸成就！你洞悉${this.enemy.name}的所有弱點，凝聚全力發動必殺一擊，造成 9999 點致命傷害！`, 'player_attack')
+      this.addLog(this.random.choice(this.enemy.flavorText.miss), 'damage')
+      this.consumeWeaponDurability()
+      this.isPlayerTurn = false
+      return
+    }
+
+    // 未解鎖成就：根據同類型野獸獲勝次數享受傷害加成 (每次勝出 +25%)
+    const kills = this.getBeastKills(this.enemy.id)
+    const bonusMultiplier = 1 + kills * 0.25
     const playerAtk = this.game['playerSystem'].getAttackPower()
     const enemyDef = this.enemy.defense
-    const damage = Math.max(1, playerAtk - enemyDef + this.random.nextInt(-2, 3))
+    const baseDamage = Math.max(1, playerAtk - enemyDef + this.random.nextInt(-2, 3))
+    const damage = Math.round(baseDamage * bonusMultiplier)
 
     // 命中判定 (基礎 85% + 速度差)
     const hitChance = 0.85 + (10 - this.enemy.speed) * 0.01
@@ -244,7 +269,8 @@ export class CombatSystem {
 
     if (isHit) {
       this.enemy.health -= damage
-      this.addLog(`你攻擊${this.enemy.name}，造成 ${damage} 點傷害！`, 'player_attack')
+      const bonusText = kills > 0 ? `（熟練度加成 +${kills * 25}%）` : ''
+      this.addLog(`你攻擊${this.enemy.name}，造成 ${damage} 點傷害！${bonusText}`, 'player_attack')
       this.addLog(this.random.choice(this.enemy.flavorText.miss), 'damage')
 
       // 觸發武器耐久度消耗
@@ -323,17 +349,44 @@ export class CombatSystem {
     player.stats.combatsWon++
     if (this.enemy.id === 'wild_boar') player.flags['combat_wild_boar_won'] = true
     if (this.enemy.id === 'jungle_snake') player.flags['combat_jungle_snake_won'] = true
+    if (this.enemy.id === 'cave_bat_swarm') player.flags['combat_cave_bat_swarm_won'] = true
     if (this.enemy.id === 'ruins_guardian') player.flags['combat_ruins_guardian_won'] = true
     this.game.achievementSystem?.checkAchievements()
 
+    // 判定是否為一擊必殺並記錄
+    const isOneHit = this.isCurrentBattleOneHit || (this.turn === 1 && this.enemy.health <= 0)
+    this.recordBeastKill(this.enemy.id, isOneHit)
+
+    const kills = this.getBeastKills(this.enemy.id)
+    const oneHitKills = this.getBeastOneHitKills(this.enemy.id)
+
+    if (this.hasBeastAchievement(this.enemy.id)) {
+      if (oneHitKills < 50) {
+        this.addLog(`⚡ 一擊必殺累計：${oneHitKills}/50 次（滿50次後野外遭遇直接跳過戰鬥領取戰利品）`, 'info')
+      } else {
+        this.addLog(`🏆 ${this.enemy.name}一擊必殺已達 ${oneHitKills} 次！日後遭遇將直接跳過戰鬥取得戰利品！`, 'victory')
+      }
+    } else {
+      this.addLog(`📈 擊敗${this.enemy.name}累計 ${kills} 次，對其傷害提升至 +${kills * 25}%！解鎖成就後將可 100% 一擊必殺！`, 'info')
+    }
+
     // 掉落物品
+    let dropped = false
     for (const loot of this.enemy.loot) {
       if (this.random.chance(loot.chance)) {
         const qty = this.random.nextInt(loot.minQty, loot.maxQty + 1)
         this.game['playerSystem'].addItem(loot.itemId, qty)
         const def = ITEM_DEFS[loot.itemId]
         this.addLog(`獲得 ${def?.name || loot.itemId} x${qty}`, 'loot')
+        dropped = true
       }
+    }
+    if (!dropped && this.enemy.loot.length > 0) {
+      const fallback = this.enemy.loot[0]
+      const qty = fallback.minQty || 1
+      this.game['playerSystem'].addItem(fallback.itemId, qty)
+      const def = ITEM_DEFS[fallback.itemId]
+      this.addLog(`獲得 ${def?.name || fallback.itemId} x${qty}`, 'loot')
     }
 
     this.game['audioSystem'].playSFX('combat_win')
@@ -394,6 +447,97 @@ export class CombatSystem {
         return true
     }
     return false
+  }
+
+  /** 取得特定野獸累計擊敗次數 */
+  getBeastKills(enemyId: string): number {
+    const stats = this.game['playerSystem']?.player?.stats
+    if (!stats) return 0
+    if (!stats.beastKills) stats.beastKills = {}
+    return stats.beastKills[enemyId] || 0
+  }
+
+  /** 取得特定野獸累計一擊必殺次數 */
+  getBeastOneHitKills(enemyId: string): number {
+    const stats = this.game['playerSystem']?.player?.stats
+    if (!stats) return 0
+    if (!stats.beastOneHitKills) stats.beastOneHitKills = {}
+    return stats.beastOneHitKills[enemyId] || 0
+  }
+
+  /** 檢查該野獸是否已解鎖 100% 一擊必殺成就 */
+  hasBeastAchievement(enemyId: string): boolean {
+    const achId = ENEMY_ACHIEVEMENTS[enemyId]
+    if (!achId) return false
+    return this.game.achievementSystem?.isUnlocked(achId) ?? false
+  }
+
+  /** 記錄擊殺與一擊必殺進度 */
+  recordBeastKill(enemyId: string, isOneHit: boolean): void {
+    const stats = this.game['playerSystem']?.player?.stats
+    if (!stats) return
+    if (!stats.beastKills) stats.beastKills = {}
+    if (!stats.beastOneHitKills) stats.beastOneHitKills = {}
+
+    stats.beastKills[enemyId] = (stats.beastKills[enemyId] || 0) + 1
+    if (isOneHit) {
+      stats.beastOneHitKills[enemyId] = (stats.beastOneHitKills[enemyId] || 0) + 1
+    }
+
+    try {
+      localStorage.setItem('island_survival_beast_mastery', JSON.stringify({
+        beastKills: stats.beastKills,
+        beastOneHitKills: stats.beastOneHitKills
+      }))
+    } catch (_) {}
+  }
+
+  /** 嘗試觸發極意秒殺 (同類型一擊必殺 >= 50 次後，遭遇直接勝利取得戰利品) */
+  tryInstantVictory(enemyId: string): boolean {
+    const oneHitKills = this.getBeastOneHitKills(enemyId)
+    if (oneHitKills < 50) return false
+
+    const enemyTemplate = this.enemies[enemyId]
+    if (!enemyTemplate) return false
+
+    const player = this.game['playerSystem'].player
+    player.stats.combatsWon++
+    if (enemyId === 'wild_boar') player.flags['combat_wild_boar_won'] = true
+    if (enemyId === 'jungle_snake') player.flags['combat_jungle_snake_won'] = true
+    if (enemyId === 'cave_bat_swarm') player.flags['combat_cave_bat_swarm_won'] = true
+    if (enemyId === 'ruins_guardian') player.flags['combat_ruins_guardian_won'] = true
+    this.game.achievementSystem?.checkAchievements()
+
+    this.recordBeastKill(enemyId, true)
+
+    const lootsAcquired: string[] = []
+    for (const loot of enemyTemplate.loot) {
+      if (this.random.chance(loot.chance)) {
+        const qty = this.random.nextInt(loot.minQty, loot.maxQty + 1)
+        this.game['playerSystem'].addItem(loot.itemId, qty)
+        const def = ITEM_DEFS[loot.itemId]
+        lootsAcquired.push(`${def?.name || loot.itemId} x${qty}`)
+      }
+    }
+    if (lootsAcquired.length === 0 && enemyTemplate.loot.length > 0) {
+      const fallback = enemyTemplate.loot[0]
+      const qty = fallback.minQty || 1
+      this.game['playerSystem'].addItem(fallback.itemId, qty)
+      const def = ITEM_DEFS[fallback.itemId]
+      lootsAcquired.push(`${def?.name || fallback.itemId} x${qty}`)
+    }
+
+    this.game.advanceTime(5)
+    this.game['audioSystem']?.playSFX('combat_win')
+
+    const lootMsg = lootsAcquired.length > 0 ? `獲得戰利品：${lootsAcquired.join('、')}` : ''
+    this.game['uiSystem']?.addMessage(
+      `⚡【極意秒殺】你對【${enemyTemplate.name}】的狩獵技巧已入化境（秒殺累計 ${oneHitKills + 1} 次）！未入戰鬥即瞬間制伏野獸，${lootMsg}！`,
+      'success',
+      4500
+    )
+
+    return true
   }
 
   /** 重置戰鬥系統 */
@@ -565,12 +709,25 @@ export class CombatSystem {
     ctx.fillStyle = '#ff6b6b'
     ctx.font = 'bold 22px "Microsoft JhengHei", sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText(`⚔ 戰鬥: ${this.enemy.name}`, w / 2, panelY + 35)
+    ctx.fillText(`⚔ 戰鬥: ${this.enemy.name}`, w / 2, panelY + 30)
+
+    // 熟練度 / 一擊必殺狀態展示
+    const hasAch = this.hasBeastAchievement(this.enemy.id)
+    const kills = this.getBeastKills(this.enemy.id)
+    const oneHitKills = this.getBeastOneHitKills(this.enemy.id)
+    ctx.font = '13px "Microsoft JhengHei", sans-serif'
+    if (hasAch) {
+      ctx.fillStyle = '#ffd93d'
+      ctx.fillText(`⚡【成就極意】100% 一擊必殺生效中 (秒殺累計: ${oneHitKills}/50 次)`, w / 2, panelY + 50)
+    } else {
+      ctx.fillStyle = '#74b9ff'
+      ctx.fillText(`🎯 熟練度: 累積擊敗 ${kills} 次 (傷害加成 +${kills * 25}%)`, w / 2, panelY + 50)
+    }
 
     // 回合數
     ctx.fillStyle = '#aaa'
-    ctx.font = '14px monospace'
-    ctx.fillText(`回合: ${this.turn}`, w / 2, panelY + 55)
+    ctx.font = '12px monospace'
+    ctx.fillText(`回合: ${this.turn}`, panelX + panelW - 55, panelY + 30)
 
     // 敵人血條
     this.renderHealthBar(ctx, panelX + 30, panelY + 80, panelW - 60, 20,
