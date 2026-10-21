@@ -93,19 +93,14 @@ export class Renderer {
   /** 更新攝影機位置 */
   updateCamera(dt: number): void {
     const player = this.playerSystem.player
+    // 主角永遠精確鎖定在畫面正中央
     const targetX = player.position.x * this.tileSize - this.viewWidth / 2 + this.tileSize / 2
     const targetY = player.position.y * this.tileSize - this.viewHeight / 2 + this.tileSize / 2
 
-    // 限制攝影機範圍
-    const mapWidth = this.game.config.mapWidth * this.tileSize
-    const mapHeight = this.game.config.mapHeight * this.tileSize
-
-    this.cameraTargetX = Math.max(0, Math.min(mapWidth - this.viewWidth, targetX))
-    this.cameraTargetY = Math.max(0, Math.min(mapHeight - this.viewHeight, targetY))
-
-    // 平滑插值
-    this.cameraX += (this.cameraTargetX - this.cameraX) * this.cameraLerp
-    this.cameraY += (this.cameraTargetY - this.cameraY) * this.cameraLerp
+    this.cameraTargetX = targetX
+    this.cameraTargetY = targetY
+    this.cameraX = targetX
+    this.cameraY = targetY
 
     // 更新玩家移動動畫
     this.updatePlayerAnimation(dt)
@@ -151,34 +146,19 @@ export class Renderer {
   /** 渲染地圖 */
   private renderMap(): void {
     const ctx = this.ctx
-    const tileSize = this.tileSize
-    const map = this.mapSystem.getMap()
-    const mapWidth = this.game.config.mapWidth
-    const mapHeight = this.game.config.mapHeight
 
-    // 計算可見範圍
-    const startX = Math.max(0, Math.floor(this.cameraX / tileSize))
-    const endX = Math.min(mapWidth, Math.ceil((this.cameraX + this.viewWidth) / tileSize))
-    const startY = Math.max(0, Math.floor(this.cameraY / tileSize))
-    const endY = Math.min(mapHeight, Math.ceil((this.cameraY + this.viewHeight) / tileSize))
+    // 繪製島嶼外的深海背景 (確保地圖移動時邊界外是海洋)
+    ctx.fillStyle = '#0f3854'
+    ctx.fillRect(0, 0, this.viewWidth, this.viewHeight)
 
     // 使用離屏畫布快取
     if (this.mapCacheDirty || !this.mapCache) {
       this.rebuildMapCache()
     }
 
-    // 繪製快取的地圖
+    // 繪製快取的地圖 (以攝影機相對位置位移，單一 GPU 呼叫)
     if (this.mapCache) {
-      ctx.drawImage(
-        this.mapCache,
-        this.cameraX, this.cameraY,
-        this.viewWidth, this.viewHeight,
-        0, 0,
-        this.viewWidth, this.viewHeight
-      )
-    } else {
-      // 降級：直接繪製
-      this.renderMapDirect(ctx, startX, endX, startY, endY)
+      ctx.drawImage(this.mapCache, -Math.round(this.cameraX), -Math.round(this.cameraY))
     }
   }
 
@@ -417,8 +397,8 @@ export class Renderer {
     const player = this.playerSystem.player
     const tileSize = this.tileSize
 
-    const screenX = player.position.x * tileSize - this.cameraX + tileSize / 2
-    const screenY = player.position.y * tileSize - this.cameraY + tileSize / 2 + this.playerBobOffset
+    const screenX = this.viewWidth / 2
+    const screenY = this.viewHeight / 2 + this.playerBobOffset
 
     // 更新玩家動畫狀態
     this.updatePlayerAnimationState()
@@ -610,8 +590,8 @@ export class Renderer {
 
     const ctx = this.ctx
     const tileSize = this.tileSize
-    const screenX = player.position.x * tileSize - this.cameraX + tileSize / 2
-    const screenY = player.position.y * tileSize - this.cameraY + tileSize / 2
+    const screenX = this.viewWidth / 2
+    const screenY = this.viewHeight / 2
 
     ctx.save()
     // 夜間氛圍光罩：以玩家為中心保留半徑光圈，周圍籠罩夜色
